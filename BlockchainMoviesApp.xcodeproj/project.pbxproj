@@ -1,0 +1,484 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E83EA6A92BC4E9B20076D6BB /* BlockchainMoviesAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6A82BC4E9B20076D6BB /* BlockchainMoviesAppApp.swift */; };
+		E83EA6AD2BC4E9B30076D6BB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E83EA6AC2BC4E9B30076D6BB /* Assets.xcassets */; };
+		E83EA6B02BC4E9B30076D6BB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E83EA6AF2BC4E9B30076D6BB /* Preview Assets.xcassets */; };
+		E83EA6BC2BC4F0810076D6BB /* BlockChainNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = E83EA6BB2BC4F0810076D6BB /* BlockChainNetworking */; };
+		E83EA6BF2BC4F10C0076D6BB /* BlockChainDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = E83EA6BE2BC4F10C0076D6BB /* BlockChainDatabase */; };
+		E83EA6D12BC5A71F0076D6BB /* CommunityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6D02BC5A71F0076D6BB /* CommunityView.swift */; };
+		E83EA6D32BC5A7300076D6BB /* CommunityCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6D22BC5A7300076D6BB /* CommunityCell.swift */; };
+		E83EA6D52BC5A79E0076D6BB /* CommunityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6D42BC5A79E0076D6BB /* CommunityViewModel.swift */; };
+		E83EA6D72BC5A9A40076D6BB /* GridLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6D62BC5A9A40076D6BB /* GridLayout.swift */; };
+		E83EA6D92BC5A9D90076D6BB /* ThumbGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6D82BC5A9D90076D6BB /* ThumbGrid.swift */; };
+		E83EA6DB2BC5AA110076D6BB /* Device.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6DA2BC5AA110076D6BB /* Device.swift */; };
+		E83EA6DD2BC5B0C30076D6BB /* CommunityGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6DC2BC5B0C30076D6BB /* CommunityGrid.swift */; };
+		E83EA6DF2BC5B2F80076D6BB /* DarkwingDuckTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6DE2BC5B2F80076D6BB /* DarkwingDuckTheme.swift */; };
+		E83EA6E22BC5B9840076D6BB /* DirtyImageDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6E12BC5B9840076D6BB /* DirtyImageDownloader.swift */; };
+		E83EA6E42BC5B9A10076D6BB /* DirtyImageDownloaderType.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6E32BC5B9A10076D6BB /* DirtyImageDownloaderType.swift */; };
+		E83EA6E62BC5B9B30076D6BB /* DirtyImageDownloaderTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6E52BC5B9B30076D6BB /* DirtyImageDownloaderTask.swift */; };
+		E83EA6E92BC5BE690076D6BB /* DirtyImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6E82BC5BE690076D6BB /* DirtyImageCache.swift */; };
+		E83EA6EB2BC5BE770076D6BB /* DirtyImageCacheFileRecycler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6EA2BC5BE770076D6BB /* DirtyImageCacheFileRecycler.swift */; };
+		E83EA6ED2BC5BE810076D6BB /* DirtyImageCacheFileRecyclerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6EC2BC5BE810076D6BB /* DirtyImageCacheFileRecyclerNode.swift */; };
+		E83EA6EF2BC5BEBA0076D6BB /* FileUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6EE2BC5BEBA0076D6BB /* FileUtils.swift */; };
+		E83EA6F12BC5C0720076D6BB /* UIImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6F02BC5C0720076D6BB /* UIImage+Resize.swift */; };
+		E83EA6F32BC5C0930076D6BB /* CGSize+Aspect.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6F22BC5C0930076D6BB /* CGSize+Aspect.swift */; };
+		E83EA6F52BC5C0AA0076D6BB /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6F42BC5C0AA0076D6BB /* Math.swift */; };
+		E83EA6F72BC5C0DD0076D6BB /* Matrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6F62BC5C0DD0076D6BB /* Matrix.swift */; };
+		E83EA6F92BC5C6B60076D6BB /* CommunityCellModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6F82BC5C6B60076D6BB /* CommunityCellModel.swift */; };
+		E83EA6FB2BC5C7630076D6BB /* CommunityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6FA2BC5C7630076D6BB /* CommunityModel.swift */; };
+		E83EA6FD2BC5D8590076D6BB /* CommunityCellImageDownloadObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83EA6FC2BC5D8590076D6BB /* CommunityCellImageDownloadObject.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		E83EA6A52BC4E9B20076D6BB /* BlockchainMoviesApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockchainMoviesApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E83EA6A82BC4E9B20076D6BB /* BlockchainMoviesAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockchainMoviesAppApp.swift; sourceTree = "<group>"; };
+		E83EA6AC2BC4E9B30076D6BB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E83EA6AF2BC4E9B30076D6BB /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		E83EA6B82BC4F05B0076D6BB /* BlockChainNetworking */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = BlockChainNetworking; sourceTree = "<group>"; };
+		E83EA6BD2BC4F0E30076D6BB /* BlockChainDatabase */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = BlockChainDatabase; sourceTree = "<group>"; };
+		E83EA6D02BC5A71F0076D6BB /* CommunityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityView.swift; sourceTree = "<group>"; };
+		E83EA6D22BC5A7300076D6BB /* CommunityCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityCell.swift; sourceTree = "<group>"; };
+		E83EA6D42BC5A79E0076D6BB /* CommunityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityViewModel.swift; sourceTree = "<group>"; };
+		E83EA6D62BC5A9A40076D6BB /* GridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridLayout.swift; sourceTree = "<group>"; };
+		E83EA6D82BC5A9D90076D6BB /* ThumbGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbGrid.swift; sourceTree = "<group>"; };
+		E83EA6DA2BC5AA110076D6BB /* Device.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Device.swift; sourceTree = "<group>"; };
+		E83EA6DC2BC5B0C30076D6BB /* CommunityGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityGrid.swift; sourceTree = "<group>"; };
+		E83EA6DE2BC5B2F80076D6BB /* DarkwingDuckTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkwingDuckTheme.swift; sourceTree = "<group>"; };
+		E83EA6E12BC5B9840076D6BB /* DirtyImageDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageDownloader.swift; sourceTree = "<group>"; };
+		E83EA6E32BC5B9A10076D6BB /* DirtyImageDownloaderType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageDownloaderType.swift; sourceTree = "<group>"; };
+		E83EA6E52BC5B9B30076D6BB /* DirtyImageDownloaderTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageDownloaderTask.swift; sourceTree = "<group>"; };
+		E83EA6E82BC5BE690076D6BB /* DirtyImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageCache.swift; sourceTree = "<group>"; };
+		E83EA6EA2BC5BE770076D6BB /* DirtyImageCacheFileRecycler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageCacheFileRecycler.swift; sourceTree = "<group>"; };
+		E83EA6EC2BC5BE810076D6BB /* DirtyImageCacheFileRecyclerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirtyImageCacheFileRecyclerNode.swift; sourceTree = "<group>"; };
+		E83EA6EE2BC5BEBA0076D6BB /* FileUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUtils.swift; sourceTree = "<group>"; };
+		E83EA6F02BC5C0720076D6BB /* UIImage+Resize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Resize.swift"; sourceTree = "<group>"; };
+		E83EA6F22BC5C0930076D6BB /* CGSize+Aspect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CGSize+Aspect.swift"; sourceTree = "<group>"; };
+		E83EA6F42BC5C0AA0076D6BB /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
+		E83EA6F62BC5C0DD0076D6BB /* Matrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Matrix.swift; sourceTree = "<group>"; };
+		E83EA6F82BC5C6B60076D6BB /* CommunityCellModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityCellModel.swift; sourceTree = "<group>"; };
+		E83EA6FA2BC5C7630076D6BB /* CommunityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityModel.swift; sourceTree = "<group>"; };
+		E83EA6FC2BC5D8590076D6BB /* CommunityCellImageDownloadObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityCellImageDownloadObject.swift; sourceTree = "<group>"; };
+		E8E2D9502BC74F1E00A41EC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E83EA6A22BC4E9B20076D6BB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E83EA6BC2BC4F0810076D6BB /* BlockChainNetworking in Frameworks */,
+				E83EA6BF2BC4F10C0076D6BB /* BlockChainDatabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E83EA69C2BC4E9B20076D6BB = {
+			isa = PBXGroup;
+			children = (
+				E83EA6BD2BC4F0E30076D6BB /* BlockChainDatabase */,
+				E83EA6B82BC4F05B0076D6BB /* BlockChainNetworking */,
+				E83EA6A72BC4E9B20076D6BB /* BlockchainMoviesApp */,
+				E83EA6A62BC4E9B20076D6BB /* Products */,
+				E83EA6BA2BC4F0810076D6BB /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		E83EA6A62BC4E9B20076D6BB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E83EA6A52BC4E9B20076D6BB /* BlockchainMoviesApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E83EA6A72BC4E9B20076D6BB /* BlockchainMoviesApp */ = {
+			isa = PBXGroup;
+			children = (
+				E8E2D9502BC74F1E00A41EC0 /* Info.plist */,
+				E83EA6F82BC5C6B60076D6BB /* CommunityCellModel.swift */,
+				E83EA6FC2BC5D8590076D6BB /* CommunityCellImageDownloadObject.swift */,
+				E83EA6A82BC4E9B20076D6BB /* BlockchainMoviesAppApp.swift */,
+				E83EA6AC2BC4E9B30076D6BB /* Assets.xcassets */,
+				E83EA6AE2BC4E9B30076D6BB /* Preview Content */,
+				E83EA6D22BC5A7300076D6BB /* CommunityCell.swift */,
+				E83EA6FA2BC5C7630076D6BB /* CommunityModel.swift */,
+				E83EA6D42BC5A79E0076D6BB /* CommunityViewModel.swift */,
+				E83EA6D02BC5A71F0076D6BB /* CommunityView.swift */,
+				E83EA6DC2BC5B0C30076D6BB /* CommunityGrid.swift */,
+				E83EA6D62BC5A9A40076D6BB /* GridLayout.swift */,
+				E83EA6D82BC5A9D90076D6BB /* ThumbGrid.swift */,
+				E83EA6DA2BC5AA110076D6BB /* Device.swift */,
+				E83EA6DE2BC5B2F80076D6BB /* DarkwingDuckTheme.swift */,
+				E83EA6EE2BC5BEBA0076D6BB /* FileUtils.swift */,
+				E83EA6F02BC5C0720076D6BB /* UIImage+Resize.swift */,
+				E83EA6F22BC5C0930076D6BB /* CGSize+Aspect.swift */,
+				E83EA6F42BC5C0AA0076D6BB /* Math.swift */,
+				E83EA6F62BC5C0DD0076D6BB /* Matrix.swift */,
+				E83EA6E72BC5BE5E0076D6BB /* DirtyImageCache */,
+				E83EA6E02BC5B9790076D6BB /* DirtyImageDownloader */,
+			);
+			path = BlockchainMoviesApp;
+			sourceTree = "<group>";
+		};
+		E83EA6AE2BC4E9B30076D6BB /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				E83EA6AF2BC4E9B30076D6BB /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		E83EA6BA2BC4F0810076D6BB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E83EA6E02BC5B9790076D6BB /* DirtyImageDownloader */ = {
+			isa = PBXGroup;
+			children = (
+				E83EA6E12BC5B9840076D6BB /* DirtyImageDownloader.swift */,
+				E83EA6E32BC5B9A10076D6BB /* DirtyImageDownloaderType.swift */,
+				E83EA6E52BC5B9B30076D6BB /* DirtyImageDownloaderTask.swift */,
+			);
+			path = DirtyImageDownloader;
+			sourceTree = "<group>";
+		};
+		E83EA6E72BC5BE5E0076D6BB /* DirtyImageCache */ = {
+			isa = PBXGroup;
+			children = (
+				E83EA6E82BC5BE690076D6BB /* DirtyImageCache.swift */,
+				E83EA6EA2BC5BE770076D6BB /* DirtyImageCacheFileRecycler.swift */,
+				E83EA6EC2BC5BE810076D6BB /* DirtyImageCacheFileRecyclerNode.swift */,
+			);
+			path = DirtyImageCache;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E83EA6A42BC4E9B20076D6BB /* BlockchainMoviesApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E83EA6B32BC4E9B30076D6BB /* Build configuration list for PBXNativeTarget "BlockchainMoviesApp" */;
+			buildPhases = (
+				E83EA6A12BC4E9B20076D6BB /* Sources */,
+				E83EA6A22BC4E9B20076D6BB /* Frameworks */,
+				E83EA6A32BC4E9B20076D6BB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BlockchainMoviesApp;
+			packageProductDependencies = (
+				E83EA6BB2BC4F0810076D6BB /* BlockChainNetworking */,
+				E83EA6BE2BC4F10C0076D6BB /* BlockChainDatabase */,
+			);
+			productName = BlockchainMoviesApp;
+			productReference = E83EA6A52BC4E9B20076D6BB /* BlockchainMoviesApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E83EA69D2BC4E9B20076D6BB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					E83EA6A42BC4E9B20076D6BB = {
+						CreatedOnToolsVersion = 15.3;
+					};
+				};
+			};
+			buildConfigurationList = E83EA6A02BC4E9B20076D6BB /* Build configuration list for PBXProject "BlockchainMoviesApp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E83EA69C2BC4E9B20076D6BB;
+			productRefGroup = E83EA6A62BC4E9B20076D6BB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E83EA6A42BC4E9B20076D6BB /* BlockchainMoviesApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E83EA6A32BC4E9B20076D6BB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E83EA6B02BC4E9B30076D6BB /* Preview Assets.xcassets in Resources */,
+				E83EA6AD2BC4E9B30076D6BB /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E83EA6A12BC4E9B20076D6BB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E83EA6E92BC5BE690076D6BB /* DirtyImageCache.swift in Sources */,
+				E83EA6ED2BC5BE810076D6BB /* DirtyImageCacheFileRecyclerNode.swift in Sources */,
+				E83EA6E42BC5B9A10076D6BB /* DirtyImageDownloaderType.swift in Sources */,
+				E83EA6D92BC5A9D90076D6BB /* ThumbGrid.swift in Sources */,
+				E83EA6F12BC5C0720076D6BB /* UIImage+Resize.swift in Sources */,
+				E83EA6DD2BC5B0C30076D6BB /* CommunityGrid.swift in Sources */,
+				E83EA6A92BC4E9B20076D6BB /* BlockchainMoviesAppApp.swift in Sources */,
+				E83EA6D12BC5A71F0076D6BB /* CommunityView.swift in Sources */,
+				E83EA6D72BC5A9A40076D6BB /* GridLayout.swift in Sources */,
+				E83EA6D52BC5A79E0076D6BB /* CommunityViewModel.swift in Sources */,
+				E83EA6D32BC5A7300076D6BB /* CommunityCell.swift in Sources */,
+				E83EA6E62BC5B9B30076D6BB /* DirtyImageDownloaderTask.swift in Sources */,
+				E83EA6EB2BC5BE770076D6BB /* DirtyImageCacheFileRecycler.swift in Sources */,
+				E83EA6F92BC5C6B60076D6BB /* CommunityCellModel.swift in Sources */,
+				E83EA6F72BC5C0DD0076D6BB /* Matrix.swift in Sources */,
+				E83EA6EF2BC5BEBA0076D6BB /* FileUtils.swift in Sources */,
+				E83EA6DB2BC5AA110076D6BB /* Device.swift in Sources */,
+				E83EA6F32BC5C0930076D6BB /* CGSize+Aspect.swift in Sources */,
+				E83EA6E22BC5B9840076D6BB /* DirtyImageDownloader.swift in Sources */,
+				E83EA6FB2BC5C7630076D6BB /* CommunityModel.swift in Sources */,
+				E83EA6FD2BC5D8590076D6BB /* CommunityCellImageDownloadObject.swift in Sources */,
+				E83EA6DF2BC5B2F80076D6BB /* DarkwingDuckTheme.swift in Sources */,
+				E83EA6F52BC5C0AA0076D6BB /* Math.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E83EA6B12BC4E9B30076D6BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E83EA6B22BC4E9B30076D6BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E83EA6B42BC4E9B30076D6BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"BlockchainMoviesApp/Preview Content\"";
+				DEVELOPMENT_TEAM = 2GG555KD5G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlockchainMoviesApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blockchain.movies.app.BlockchainMoviesApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E83EA6B52BC4E9B30076D6BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"BlockchainMoviesApp/Preview Content\"";
+				DEVELOPMENT_TEAM = 2GG555KD5G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlockchainMoviesApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blockchain.movies.app.BlockchainMoviesApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E83EA6A02BC4E9B20076D6BB /* Build configuration list for PBXProject "BlockchainMoviesApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E83EA6B12BC4E9B30076D6BB /* Debug */,
+				E83EA6B22BC4E9B30076D6BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E83EA6B32BC4E9B30076D6BB /* Build configuration list for PBXNativeTarget "BlockchainMoviesApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E83EA6B42BC4E9B30076D6BB /* Debug */,
+				E83EA6B52BC4E9B30076D6BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E83EA6BB2BC4F0810076D6BB /* BlockChainNetworking */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BlockChainNetworking;
+		};
+		E83EA6BE2BC4F10C0076D6BB /* BlockChainDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BlockChainDatabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = E83EA69D2BC4E9B20076D6BB /* Project object */;
+}

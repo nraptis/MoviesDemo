@@ -8,13 +8,11 @@
 import UIKit
 
 class DirtyImageCacheFileRecyclerNode {
-    
     var prev: DirtyImageCacheFileRecyclerNode?
     var next: DirtyImageCacheFileRecyclerNode?
     var key: String
     var imageNumber: Int
     var imagePath: String
-    
     init(key: String, imageNumber: Int, imagePath: String) {
         self.key = key
         self.imageNumber = imageNumber
@@ -34,5 +32,11 @@ class DirtyImageCacheFileRecyclerNode {
     func purge() {
         let filePath = FileUtils.shared.getDocumentPath(fileName: imagePath)
         FileUtils.shared.deleteFile(filePath)
+    }
+    
+    func save(fileBuffer: FileBuffer) {
+        fileBuffer.writeInt32(Int32(imageNumber))
+        fileBuffer.writeString(key)
+        fileBuffer.writeString(imagePath)
     }
 }

@@ -10,7 +10,9 @@ import SwiftUI
 
 struct DarkwingDuckTheme {
     
-    static let logo = UIImage(named: "blockchain_logo") ?? UIImage()
+    @MainActor static let logo = UIImage(named: "blockchain_logo") ?? UIImage()
+    
+    static let _naughtyYellow = UIColor(red: 0.98, green: 0.82, blue: 0.025, alpha: 1.0)
     
     static let _gray900 = UIColor(red: 0.87 * 1.02, green: 0.87, blue: 0.87 * 1.05, alpha: 1.0)
     static let _gray800 = UIColor(red: 0.74 * 1.02, green: 0.74, blue: 0.74 * 1.05, alpha: 1.0)
@@ -22,6 +24,8 @@ struct DarkwingDuckTheme {
     static let _gray200 = UIColor(red: 0.12 * 1.02, green: 0.12, blue: 0.12 * 1.05, alpha: 1.0)
     static let _gray100 = UIColor(red: 0.04 * 1.02, green: 0.04, blue: 0.04 * 1.05, alpha: 1.0)
     
+    static let naughtyYellow = Color(uiColor: Self._naughtyYellow)
+    
     static let gray900 = Color(uiColor: Self._gray900)
     static let gray800 = Color(uiColor: Self._gray800)
     static let gray700 = Color(uiColor: Self._gray700)
@@ -30,4 +34,7 @@ struct DarkwingDuckTheme {
     static let gray400 = Color(uiColor: Self._gray400)
     static let gray300 = Color(uiColor: Self._gray300)
     static let gray200 = Color(uiColor: Self._gray200)
+    static let gray100 = Color(uiColor: Self._gray100)
+    
+    
 }

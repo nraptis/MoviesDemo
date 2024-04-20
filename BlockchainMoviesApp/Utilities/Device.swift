@@ -46,10 +46,8 @@ class Device {
         widthLandscapeScaled = heightPortraitScaled
         heightLandscapeScaled = widthPortraitScaled
         
-        
         print("Device Portrait  [\(String(format: "%.1f", widthPortrait)) x \(String(format: "%.1f", heightPortrait))]")
         print("Device Landscape [\(String(format: "%.1f", widthLandscape)) x \(String(format: "%.1f", heightLandscape))]")
-        
         print("Device Portrait Scaled  [\(String(format: "%.1f", widthPortraitScaled)) x \(String(format: "%.1f", heightPortraitScaled))]")
         print("Device Landscape Scaled [\(String(format: "%.1f", widthLandscapeScaled)) x \(String(format: "%.1f", heightLandscapeScaled))]")
         

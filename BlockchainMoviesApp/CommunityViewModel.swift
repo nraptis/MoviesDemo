@@ -6,248 +6,737 @@
 //
 
 import SwiftUI
+import BlockChainNetworking
+import BlockChainDatabase
+import Combine
 
 @Observable class CommunityViewModel {
     
+    
+    typealias NWMovie = BlockChainNetworking.NWMovie
+    typealias DBMovie = BlockChainDatabase.DBMovie
+    
     private static let probeAheadOrBehindRangeForDownloads = 8
     
-    static func mock() -> CommunityViewModel {
-        return CommunityViewModel()
-    }
+    @ObservationIgnored @MainActor private var databaseController = BlockChainDatabase.DBDatabaseController()
     
-    @ObservationIgnored private let downloader = DirtyImageDownloader(numberOfSimultaneousDownloads: 2)
-    @ObservationIgnored fileprivate var didWake = false
+    @MainActor @ObservationIgnored private let downloader = DirtyImageDownloader(numberOfSimultaneousDownloads: 2)
     
-    //@ImageDictActor
-    //@ObservationIgnored
-    @ObservationIgnored @MainActor fileprivate var _imageDict = [Int: UIImage]()
+    @MainActor @ObservationIgnored fileprivate var _imageDict = [String: UIImage]()
     
-    //@ObservationIgnored
-    @ObservationIgnored @MainActor fileprivate var _failedSet = Set<Int>()
-    //@ObservationIgnored
-    @ObservationIgnored @MainActor fileprivate var _activeSet = Set<Int>()
-    //@ObservationIgnored
-    @ObservationIgnored @MainActor fileprivate var _downloadingSet = Set<Int>()
+    @MainActor @ObservationIgnored fileprivate var _imageFailedSet = Set<Int>()
     
+    @MainActor @ObservationIgnored fileprivate var _imageDidCheckCacheSet = Set<Int>()
     
-    @ObservationIgnored @MainActor private var _keyBackMap = [String: CommunityCellModel]()
+    @MainActor @ObservationIgnored private var _addDownloadItems = [CommunityCellData]()
+    @MainActor @ObservationIgnored private var _checkCacheDownloadItems = [CommunityCellData]()
+    @MainActor @ObservationIgnored private var _checkCacheKeys = [KeyAndIndexPair]()
     
-    @ObservationIgnored @MainActor fileprivate var _didStartCheckCacheSet = Set<Int>()
-    @ObservationIgnored @MainActor fileprivate var _didFinishCheckCacheSet = Set<Int>()
+    @MainActor @ObservationIgnored var isUsingDatabaseData = false
     
-    //@ObservationIgnored
-    @ObservationIgnored @MainActor private(set) var model = CommunityModel()
-    
-    @MainActor @ObservationIgnored var isAssigningTasksToDownloader = false
+    @ObservationIgnored var isAssigningTasksToDownloader = false
     @ObservationIgnored var isAssigningTasksToDownloaderEnqueued = false
     
-    init() {
+    @ObservationIgnored var pageSize = 0
+    
+    @ObservationIgnored var numberOfItems = 0
+    
+    @ObservationIgnored var numberOfCells = 0
+    @ObservationIgnored var numberOfPages = 0
+    
+    @ObservationIgnored var highestPageFetchedSoFar = 0
+    
+    @ObservationIgnored private var _priorityCommunityCellDatas = [CommunityCellData]()
+    @ObservationIgnored private var _priorityList = [Int]()
+    
+    
+    // This should only change when the screen is
+    // booting up, or the device rotates. The # of cells
+    // is managed by the GridLayout
+    @MainActor @ObservationIgnored var gridCellModels = [GridCellModel]()
+    
+    @MainActor @ObservationIgnored let staticGridLayout = StaticGridLayout()
+    @MainActor @ObservationIgnored private let imageCache = DirtyImageCache(name: "dirty_cache")
+    @ObservationIgnored private(set) var isRefreshing = false
+    
+    // We use 2 "sources of truth" here.
+    @MainActor var layoutWidth = CGFloat(255.0)
+    @MainActor var layoutHeight = CGFloat(1024.0)
+    
+    private static let communityCellDataPlaceholder = CommunityCellData()
+    
+    @MainActor private(set) var isFetching = false
+    @MainActor private(set) var isNetworkErrorPresent = false
+    @MainActor var isAnyItemPresent = false
+    
+    @MainActor @ObservationIgnored let router: Router
+    @MainActor init(router: Router) {
+        
+        self.router = router
         
         downloader.delegate = self
-        downloader.paused = true
+        downloader.isBlocked = true
         
         NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
-                                               object: nil,
-                                               queue: nil) { notification in
-            print("Memory Warning!!! Purging RAM Images...")
-        }
-        
-        Task { @MainActor in
-            layout.delegate = self
-            fetchPopularMovies(page: 1)
-            
-            didWake = true
-            downloader.paused = false
-            //loadUpDownloaderWithTasks()
-            
-        }
-    }
-    
-    @MainActor func fetchPopularMovies(page: Int) {
-        isFetching = true
-        Task {
-            await _fetchPopularMovies(page: page)
-            await MainActor.run {
-                isFetching = false
-                layout.registerNumberOfCells(model.numberOfCells)
-                assignTasksToDownloader()
-                fetchMorePagesIfNecessary()
+                                               object: nil, queue: nil) { notification in
+            Task { @MainActor in
+                self._imageDict.removeAll(keepingCapacity: true)
+                self._imageFailedSet.removeAll(keepingCapacity: true)
+                self._imageDidCheckCacheSet.removeAll(keepingCapacity: true)
             }
         }
-    }
-    
-    private func _fetchPopularMovies(page: Int) async {
-        do {
-            try await model.fetchPopularMovies(page: page)
+
+        Task { @MainActor in
+            await self.heartbeat()
+        }
+        
+        // In this case, it doesn't matter the order that the imageCache and dataBase load,
+        // however, we want them to both load before the network call fires.
+        Task { @MainActor in
+            staticGridLayout.delegate = self
+            layoutWidth = staticGridLayout.width // Race condition. SwiftUI is updating the layout...
+            layoutHeight = staticGridLayout.height // Race condition. SwiftUI is updating the layout...
+            handleNumberOfCellsMayHaveChanged() // Race condition. SwiftUI is updating the layout...
             
-            await MainActor.run {
-                
-                let firstNewIndex = (page - 1) * model.pageSize
-                let ceiling = firstNewIndex + model.pageSize
-                
-                var index = firstNewIndex
-                while index < ceiling {
-                    if let communityCellModel = model.getCommunityCellModel(at: index) {
-                        _keyBackMap[communityCellModel.cacheKey] = communityCellModel
-                    }
-                    
-                    index += 1
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { @DirtyImageCacheActor in
+                    self.imageCache.load()
+                }
+                group.addTask { @MainActor in
+                    await self.databaseController.loadPersistentStores()
                 }
             }
-            
-        } catch {
-            print("fetchPopularMovies Error: \(error.localizedDescription)")
+            downloader.isBlocked = false
+            await fetchPopularMovies(page: 1)
         }
     }
     
-    @ObservationIgnored let layout = GridLayout()
-    @ObservationIgnored private let imageCache = DirtyImageCache(name: "dirty_cache")
-    private(set) var isRefreshing = false
-    @ObservationIgnored private var isFetching = false
-    
-    @ObservationIgnored var allVisibleCellModels = [GridLayout.ThumbGridCellModel]()
-    @ObservationIgnored var numberOfCells = 0
-    @ObservationIgnored var layoutHeight = CGFloat(320.0)
-    @ObservationIgnored var layoutWidth = CGFloat(320.0)
-    
-    @ObservationIgnored var didFailToFetch = false
-    
-    @MainActor func getCommunityCellModel(at index: Int) -> CommunityCellModel? {
-        return model.getCommunityCellModel(at: index)
+    @MainActor func heartbeat() async {
+        
+        await pulse()
+        
+        Task { [weak self] in
+            
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            
+            Task { @MainActor in
+                if let self = self {
+                    await self.heartbeat()
+                }
+            }
+        }
     }
     
-    
-    @MainActor var layoutHash = 0
-    @ObservationIgnored var __layoutHash = 0
-    @ObservationIgnored var isLayoutHashTriggering = false
-    @ObservationIgnored var isLayoutHashTriggeringEnqueued = false
-    func triggerLayoutHash() {
-        if isLayoutHashTriggering {
-            isLayoutHashTriggeringEnqueued = true
+    @MainActor func pulse() async {
+        
+        /*
+        guard let movieGridView = movieGridView else {
             return
         }
-        isLayoutHashTriggering = true
-        Task {
-            __layoutHash += 1
-            if __layoutHash > 100_000 { __layoutHash -= 100_000 }
-            await MainActor.run {
-                layoutHash = __layoutHash
+        
+        for movieGridCell in movieGridView.movieGridCells {
+            
+            guard let communityCellData = getCommunityCellData(at: movieGridCell.index) else {
+                switch movieGridCell.state {
+                case .missingModel:
+                    break
+                default:
+                    movieGridCell.updateStatus(.missingModel)
+                }
+                continue
             }
-            try? await Task.sleep(nanoseconds: 1_000)
-            isLayoutHashTriggering = false
-            if isLayoutHashTriggeringEnqueued {
-                isLayoutHashTriggeringEnqueued = false
-                triggerLayoutHash()
+            
+            guard let key = communityCellData.key else {
+                switch movieGridCell.state {
+                case .missingKey:
+                    break
+                default:
+                    movieGridCell.updateStatus(.missingKey)
+                }
+                continue
             }
+            
+            let index = communityCellData.index
+            
+            if movieGridCell.imageView.image === nil {
+                
+                if let image = _imageDict[key] {
+                    movieGridCell.updateStatus(.success(image))
+                } else {
+                    
+                    // This is the common "trap" scenario. We have no image, neither does the cell...
+                    // Let's see if we know the state...
+                    
+                    let keyAndIndexPair = KeyAndIndexPair(key: key, index: index)
+                    if let image = await imageCache.singleRetrieve(keyAndIndexPair) {
+                        _imageDict[key] = image
+                        movieGridCell.updateStatus(.success(image))
+                    } else if await downloader.isDownloading(communityCellData) {
+                        
+                        if await downloader.isDownloadingActively(communityCellData) {
+                            switch movieGridCell.state {
+                            case .downloadingActively:
+                                break
+                            default:
+                                movieGridCell.updateStatus(.downloadingActively)
+                            }
+                        } else {
+                            switch movieGridCell.state {
+                            case .downloading:
+                                break
+                            default:
+                                movieGridCell.updateStatus(.downloading)
+                            }
+                        }
+                    } else if _imageFailedSet.contains(index) {
+                        switch movieGridCell.state {
+                        case .error:
+                            break
+                        default:
+                            movieGridCell.updateStatus(.error)
+                        }
+                    } else {
+                        // The cell is in an illegal state right here...
+                        // Let's try to download the thing...
+                        
+                        await downloader.addDownloadTask(communityCellData)
+                        if await downloader.isDownloading(communityCellData) {
+                            if await downloader.isDownloadingActively(communityCellData) {
+                                switch movieGridCell.state {
+                                case .downloadingActively:
+                                    break
+                                default:
+                                    movieGridCell.updateStatus(.downloadingActively)
+                                }
+                            } else {
+                                switch movieGridCell.state {
+                                case .downloading:
+                                    break
+                                default:
+                                    movieGridCell.updateStatus(.downloading)
+                                }
+                            }
+                        } else {
+                            // This probably shouldn't happen.
+                            switch movieGridCell.state {
+                            case .illegal:
+                                break
+                            default:
+                                movieGridCell.updateStatus(.illegal)
+                            }
+                        }
+                    }
+                }
+                
+            } else {
+                
+                // The cell already has an image...
+                
+                if let image = _imageDict[key] {
+                    switch movieGridCell.state {
+                    case .success:
+                        break
+                    default:
+                        movieGridCell.updateStatus(.success(image))
+                    }
+                } else {
+                    
+                    // This is a strange case. The cell has an image, but we do not have an image...
+                    
+                    if _imageFailedSet.contains(index) {
+                        switch movieGridCell.state {
+                        case .error:
+                            break
+                        default:
+                            movieGridCell.updateStatus(.error)
+                        }
+                    } else if await downloader.isDownloading(communityCellData) {
+                        // Perhaps we are downloading...
+                        if await downloader.isDownloadingActively(communityCellData) {
+                            switch movieGridCell.state {
+                            case .downloadingActively:
+                                break
+                            default:
+                                movieGridCell.updateStatus(.downloadingActively)
+                            }
+                        } else {
+                            switch movieGridCell.state {
+                            case .downloading:
+                                break
+                            default:
+                                movieGridCell.updateStatus(.downloading)
+                            }
+                        }
+                    } else {
+                        
+                        // Maybe it's in the cache, but not
+                        // the image dictionary, e.g. we flushed memory warning.
+                        let keyAndIndexPair = KeyAndIndexPair(key: key, index: index)
+                        if let image = await imageCache.singleRetrieve(keyAndIndexPair) {
+                            _imageDict[key] = image
+                            movieGridCell.updateStatus(.success(image))
+                        } else {
+                            
+                            // Fishy state. Let's try to download the image...
+                            
+                            await downloader.addDownloadTask(communityCellData)
+                            if await downloader.isDownloading(communityCellData) {
+                                if await downloader.isDownloadingActively(communityCellData) {
+                                    switch movieGridCell.state {
+                                    case .downloadingActively:
+                                        break
+                                    default:
+                                        movieGridCell.updateStatus(.downloadingActively)
+                                    }
+                                } else {
+                                    switch movieGridCell.state {
+                                    case .downloading:
+                                        break
+                                    default:
+                                        movieGridCell.updateStatus(.downloading)
+                                    }
+                                }
+                            } else {
+                                // This probably shouldn't happen.
+                                switch movieGridCell.state {
+                                case .illegal:
+                                    break
+                                default:
+                                    movieGridCell.updateStatus(.illegal)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        await downloader.startTasksIfNecessary()
+        */
+    }
+    
+    @MainActor func refresh() async {
+        
+        if isRefreshing {
+            print("🧚🏽 We are already refreshing... No double refreshing...!!!")
+            return
+        }
+        
+        isRefreshing = true
+        
+        downloader.isBlocked = true
+        await downloader.cancelAll()
+        
+        var fudge = 0
+        
+        while isFetching {
+            if fudge == 0 {
+                print("🙅🏽‍♀️ Refreshing During Fetch... Waiting For End!!!")
+            }
+            
+            try? await Task.sleep(nanoseconds: 1_000_000)
+            
+            fudge += 1
+            if fudge >= 2048 {
+                print("🧛🏻‍♂️ Terminating refresh, we are fetch-locked.")
+                downloader.isBlocked = false
+                isRefreshing = false
+                return
+            }
+        }
+        
+        let nwMovies = await _fetchPopularMoviesWithNetwork(page: 1)
+        
+        // This is mainly just for user feedback; the refresh feels
+        // more natural if it takes a couple seconds...
+        try? await Task.sleep(nanoseconds: 1_250_000_000)
+        
+        if nwMovies.count <= 0 {
+            print("🧟‍♀️ Bad Refresh! We got no items from the network...")
+            
+            let dbMovies = await _fetchPopularMoviesWithDatabase()
+            if dbMovies.count <= 0 {
+                print("🧟‍♀️ Bad Refresh! We got no items from the database...")
+                
+                downloader.isBlocked = false
+                isRefreshing = false
+                isAnyItemPresent = false
+            } else {
+                
+                pageSize = -1
+                numberOfItems = dbMovies.count
+                numberOfCells = dbMovies.count
+                numberOfPages = -1
+                highestPageFetchedSoFar = -1
+                isUsingDatabaseData = true
+                _clearForRefresh()
+                _synchronize(dbMovies: dbMovies)
+                downloader.isBlocked = false
+                isRefreshing = false
+                staticGridLayout.registerNumberOfCells(numberOfCells)
+                handleVisibleCellsMayHaveChanged()
+            }
+        } else {
+            isUsingDatabaseData = false
+            _clearForRefresh()
+            _synchronize(nwMovies: nwMovies, page: 0)
+            downloader.isBlocked = false
+            isRefreshing = false
+            staticGridLayout.registerNumberOfCells(numberOfCells)
+            handleVisibleCellsMayHaveChanged()
         }
     }
     
-    @MainActor func clear() async {
+    @MainActor func _clearForRefresh() {
         
-        numberOfCells = 0
-        layoutHeight = 0
-        layoutHeight = 0
-        
-        layout.clear()
-        
-        await downloader.cancelAll()
-        
-        
+        // Empty out all the internal storage crap...!!!
         _imageDict.removeAll()
-        _failedSet.removeAll()
-        _activeSet.removeAll()
-        _downloadingSet.removeAll()
-        _didStartCheckCacheSet.removeAll()
-        _didFinishCheckCacheSet.removeAll()
+        _imageFailedSet.removeAll()
+        //_imageDownloadingActivelySet.removeAll()
+        //_imageDownloadingSet.removeAll()
+        _imageDidCheckCacheSet.removeAll()
         
-        _keyBackMap.removeAll()
+        staticGridLayout.clear()
         
-        model = CommunityModel()
+        for communityCellData in communityCellDatas {
+            if let communityCellData = communityCellData {
+                _depositCommunityCellData(communityCellData)
+            }
+        }
+        communityCellDatas.removeAll()
+    }
+    
+    @MainActor func fetchPopularMovies(page: Int) async {
+        
+        if isFetching { return }
+        
+        if isRefreshing { return }
+        
+        print("🎁 Fetching popular movies [page \(page)]")
+        
+        isFetching = true
+        
+        let nwMovies = await _fetchPopularMoviesWithNetwork(page: page)
+        
+        // We either fetched nothing, or got an error.
+        if nwMovies.count <= 0 {
+            if communityCellDatas.count > 0 {
+                // We will just keep what we have...
+            } else {
+                
+                // We will fetch from the database!!!
+                let dbMovies = await _fetchPopularMoviesWithDatabase()
+                if dbMovies.count <= 0 {
+                    
+                    print("🪣 Tried to use database, there are no items.")
+                    
+                    isUsingDatabaseData = false
+                    isAnyItemPresent = false
+                
+                } else {
+                    
+                    print("📀 Fetched \(dbMovies.count) items from database! Using offline mode!")
+                    
+                    pageSize = -1
+                    numberOfItems = dbMovies.count
+                    numberOfCells = dbMovies.count
+                    numberOfPages = -1
+                    highestPageFetchedSoFar = -1
+                    
+                    isUsingDatabaseData = true
+                    _synchronize(dbMovies: dbMovies)
+                    isAnyItemPresent = true
+                }
+            }
+
+        } else {
+            isUsingDatabaseData = false
+            _synchronize(nwMovies: nwMovies, page: page)
+            isAnyItemPresent = true
+        }
+        
+        isFetching = false
+        staticGridLayout.registerNumberOfCells(numberOfCells)
+        
+        print("[JACK] fetchPopularMovies, registered \(numberOfCells) cells")
+        handleVisibleCellsMayHaveChanged()
+    }
+    
+    @MainActor private func _synchronize(nwMovies: [NWMovie], page: Int) {
+        
+        if pageSize <= 0 {
+            print("🧌 pageSize = \(pageSize), this seems wrong.")
+            return
+        }
+        if page <= 0 {
+            print("🧌 page = \(page), this seems wrong. We expect the pages to start at 1, and number up.")
+            return
+        }
+        
+        // The first index of the cells, in the master list.
+        let startCellIndex = (page - 1) * pageSize
+        var cellModelIndex = startCellIndex
+        
+        var newCommunityCellDatas = [CommunityCellData]()
+        newCommunityCellDatas.reserveCapacity(nwMovies.count)
+        for nwMovie in nwMovies {
+            let cellModel = _withdrawCommunityCellData(index: cellModelIndex, nwMovie: nwMovie)
+            newCommunityCellDatas.append(cellModel)
+            cellModelIndex += 1
+        }
+        
+        _overwriteCells(newCommunityCellDatas, at: startCellIndex)
+    }
+    
+    @MainActor private func _synchronize(dbMovies: [DBMovie]) {
+        
+        // The first index of the cells, here it's always 0.
+        let startCellIndex = 0
+        var cellModelIndex = startCellIndex
+        
+        var newCommunityCellDatas = [CommunityCellData]()
+        newCommunityCellDatas.reserveCapacity(dbMovies.count)
+        for dbMovie in dbMovies {
+            let cellModel = _withdrawCommunityCellData(index: cellModelIndex, dbMovie: dbMovie)
+            newCommunityCellDatas.append(cellModel)
+            cellModelIndex += 1
+        }
+        
+        _magnetizeCells()
+        
+        _overwriteCells(newCommunityCellDatas, at: startCellIndex)
+    }
+    
+    // Put all the cells which were in the communityCellDatas
+    // list into the queue, blank them all out to nil.
+    @MainActor private func _magnetizeCells() {
+        var cellModelIndex = 0
+        while cellModelIndex < communityCellDatas.count {
+            if let communityCellData = communityCellDatas[cellModelIndex] {
+                _depositCommunityCellData(communityCellData)
+                communityCellDatas[cellModelIndex] = nil
+            }
+            cellModelIndex += 1
+        }
+    }
+    
+    @MainActor private func _overwriteCells(_ newCommunityCellDatas: [CommunityCellData], at index: Int) {
+        
+        if index < 0 {
+            print("🧌 index = \(index), this seems wrong.")
+            return
+        }
+        
+        let ceiling = index + newCommunityCellDatas.count
+        
+        // Fill in with blank up to the ceiling
+        while communityCellDatas.count < ceiling {
+            communityCellDatas.append(nil)
+        }
+        
+        // What we do here is flush out anything in the range
+        // we are "writing" to... In case we have overlap, etc.
+        var itemIndex = 0
+        var cellModelIndex = index
+        while itemIndex < newCommunityCellDatas.count {
+            if let communityCellData = communityCellDatas[cellModelIndex] {
+                _depositCommunityCellData(communityCellData)
+                communityCellDatas[cellModelIndex] = nil
+            }
+            
+            itemIndex += 1
+            cellModelIndex += 1
+        }
+
+        // What we do here is place new cell models in this range,
+        // which will now be 100% clean and ready for that fresh
+        // fresh sweet baby Jesus sweeting falling down fast.
+        itemIndex = 0
+        cellModelIndex = index
+        while itemIndex < newCommunityCellDatas.count {
+            let communityCellData = newCommunityCellDatas[itemIndex]
+            communityCellDatas[cellModelIndex] = communityCellData
+            itemIndex += 1
+            cellModelIndex += 1
+        }
+    }
+    
+    private func _fetchPopularMoviesWithNetwork(page: Int) async -> [NWMovie] {
+        
+        var _isNetworkErrorPresent = false
+        
+        var result = [NWMovie]()
+        do {
+            let response = try await BlockChainNetworking.NWNetworkController.fetchPopularMovies(page: page)
+            result.append(contentsOf: response.results)
+            do {
+                try await databaseController.sync(nwMovies: response.results)
+                print("💾 We did sync Movies to database.")
+            } catch {
+                print("🧌 Could not sync Movies to database.")
+                print("\(error.localizedDescription)")
+            }
+            
+            numberOfItems = response.total_results
+            numberOfPages = response.total_pages
+            
+            if response.results.count > pageSize { pageSize = response.results.count }
+            
+            if page > highestPageFetchedSoFar { highestPageFetchedSoFar = page }
+            
+            var _numberOfCells = (highestPageFetchedSoFar) * pageSize
+            if _numberOfCells > numberOfItems { _numberOfCells = numberOfItems }
+            
+            numberOfCells = _numberOfCells
+            
+        } catch let error {
+            print("🧌 Unable to fetch popular movies (Network): \(error.localizedDescription)")
+            _isNetworkErrorPresent = true
+        }
+        
+        let __isNetworkErrorPresent = _isNetworkErrorPresent
+        await MainActor.run {
+            isNetworkErrorPresent = __isNetworkErrorPresent
+        }
+        
+        return result
+    }
+    
+    private func _fetchPopularMoviesWithDatabase() async -> [DBMovie] {
+        var result = [DBMovie]()
+        do {
+            let dbMovies = try await databaseController.fetchMovies()
+            result.append(contentsOf: dbMovies)
+            
+        } catch let error {
+            print("🧌 Unable to fetch (Database): \(error.localizedDescription)")
+        }
+        return result
     }
     
     @MainActor func getCellImage(at index: Int) -> UIImage? {
-        if let communityCellModel = model.getCommunityCellModel(at: index) {
-            if let result = _imageDict[communityCellModel.index] {
-                return result
+        if let communityCellData = getCommunityCellData(at: index) {
+            if let key = communityCellData.key {
+                if let result = _imageDict[key] {
+                    return result
+                }
             }
         }
         return nil
     }
     
     func forceRestartDownload(at index: Int) {
-        
+        fatalError("Not Implemented")
     }
     
     @MainActor func didCellImageDownloadFail(at index: Int) -> Bool {
-        if let communityCellModel = model.getCommunityCellModel(at: index) {
-            return _failedSet.contains(communityCellModel.index)
+        _imageFailedSet.contains(index)
+    }
+    
+    @MainActor func isCellImageDownloading(at index: Int) async -> Bool {
+        
+        guard let communityCellData = getCommunityCellData(at: index) else {
+            return false
         }
-        return false
+        
+        return await downloader.isDownloading(communityCellData)
     }
     
-    @MainActor func isCellImageDownloadActive(at index: Int) -> Bool {
-        if let communityCellModel = model.getCommunityCellModel(at: index) {
-            return _activeSet.contains(communityCellModel.index)
+    @MainActor func isCellImageDownloadingActively(at index: Int) async -> Bool {
+        guard let communityCellData = getCommunityCellData(at: index) else {
+            return false
         }
-        return false
+        
+        return await downloader.isDownloadingActively(communityCellData)
     }
     
-    func refreshWrappingFetch() async {
-        // Fake Refresh, 1 seconds
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-        await fetchPopularMovies(page: 1)
-    }
-    
-    func refresh() async {
-        
-        isRefreshing = true
-        
-        //1.) Clear everything, wipe the screen
-        await clear()
-        
-        //3.) do the actual fetch
-        await refreshWrappingFetch()
-        
-        //4.) wrap it up
-        await MainActor.run {
-            self.isRefreshing = false
-            //self.loadUpDownloaderWithTasks()
+    func registerScrollContent(_ scrollContentGeometry: GeometryProxy) {
+        Task { @MainActor in
+            await assignTasksToDownloader()
         }
     }
     
-    @MainActor func registerScrollContent(_ scrollContentGeometry: GeometryProxy) {
-        
-        assignTasksToDownloader()
-        
+    
+    @ObservationIgnored @MainActor var gridCellModelQueue = [GridCellModel]()
+
+    @MainActor private func _withdrawGridCellModel() -> GridCellModel {
+        if gridCellModelQueue.count > 0 {
+            let result = gridCellModelQueue.removeLast()
+            return result
+        } else {
+            let result = GridCellModel()
+            return result
+        }
+    }
+    
+    @MainActor private func _depositGridCellModel(_ cellModel: GridCellModel) {
+        gridCellModelQueue.append(cellModel)
+    }
+    
+    @ObservationIgnored @MainActor var communityCellDatas = [CommunityCellData?]()
+    @ObservationIgnored @MainActor var communityCellDataQueue = [CommunityCellData]()
+    
+    @MainActor func _withdrawCommunityCellData(index: Int, nwMovie: BlockChainNetworking.NWMovie) -> CommunityCellData {
+        if communityCellDataQueue.count > 0 {
+            let result = communityCellDataQueue.removeLast()
+            result.inject(index: index, nwMovie: nwMovie)
+            return result
+        } else {
+            let result = CommunityCellData(index: index, nwMovie: nwMovie)
+            return result
+        }
+    }
+    
+    @MainActor private func _withdrawCommunityCellData(index: Int, dbMovie: BlockChainDatabase.DBMovie) -> CommunityCellData {
+        if communityCellDataQueue.count > 0 {
+            let result = communityCellDataQueue.removeLast()
+            result.inject(index: index, dbMovie: dbMovie)
+            return result
+        } else {
+            let result = CommunityCellData(index: index, dbMovie: dbMovie)
+            return result
+        }
+    }
+    
+    @MainActor private func _depositCommunityCellData(_ cellModel: CommunityCellData) {
+        communityCellDataQueue.append(cellModel)
+    }
+    
+    @MainActor func getCommunityCellData(at index: Int) -> CommunityCellData? {
+        if index >= 0 && index < communityCellDatas.count {
+            return communityCellDatas[index]
+        }
+        return nil
     }
     
     // This is on the MainActor because the UI uses "AllVisibleCellModels"
     @MainActor func fetchMorePagesIfNecessary() {
         
         if isFetching { return }
+        if isRefreshing { return }
+        if isUsingDatabaseData { return }
         
-        if allVisibleCellModels.count <= 0 { return }
+        // They have to pull-to-refresh when the network comes back on...
+        if isNetworkErrorPresent { return }
         
-        let pageSize = model.pageSize
+        //
+        // This needs a valid page size...
+        // It sucks they chose "page" instead of (index, limit)
+        //
+        
         if pageSize < 1 { return }
         
-        let numberOfCols = layout.getNumberOfCols()
-        //let numberOfItems = model.numberOfItems
-        let numberOfPages = model.numberOfPages
+        let firstCellIndexOnScreen = staticGridLayout.getFirstCellIndexOnScreen()
+        let lastCellIndexOnScreen = staticGridLayout.getLastCellIndexOnScreen()
         
-        var _lowest = allVisibleCellModels[0].index
-        var _highest = allVisibleCellModels[0].index
-        for cellModel in allVisibleCellModels {
-            if cellModel.index < _lowest {
-                _lowest = cellModel.index
-            }
-            if cellModel.index > _highest {
-                _highest = cellModel.index
-            }
-        }
+        if firstCellIndexOnScreen >= lastCellIndexOnScreen { return }
+        
+        let numberOfCols = staticGridLayout.getNumberOfCols()
+        
+        var _lowest = firstCellIndexOnScreen
+        var _highest = lastCellIndexOnScreen
         
         _lowest -= numberOfCols
-        _highest += (numberOfCols * 4)
+        _highest += (numberOfCols * 2)
         
         if _lowest < 0 {
             _lowest = 0
@@ -259,12 +748,15 @@ import SwiftUI
         
         var checkIndex = lowest
         while checkIndex < highest {
-            if !model.doesDataExist(at: checkIndex) {
+            if getCommunityCellData(at: checkIndex) === nil {
                 
                 let pageIndexToFetch = (checkIndex / pageSize)
                 let pageToFetch = pageIndexToFetch + 1
+                
                 if pageToFetch < numberOfPages {
-                    fetchPopularMovies(page: pageToFetch)
+                    Task {
+                        await fetchPopularMovies(page: pageToFetch)
+                    }
                     return
                 }
             }
@@ -272,15 +764,250 @@ import SwiftUI
         }
     }
     
-    @ObservationIgnored private var _priorityCommunityCellModels = [CommunityCellModel]()
-    @ObservationIgnored private var _priorityList = [Int]()
+    private var _isFetchingDetails = false
+    @MainActor func handleCellClicked(at index: Int) {
+        
+        if _isFetchingDetails {
+            print("🪚 [STOPPED] Attempted to queue up fetch details twice.")
+            return
+        }
+        
+        _isFetchingDetails = true
+        Task { @MainActor in
+            if let communityCellData = getCommunityCellData(at: index) {
+                do {
+                    
+                    let id = communityCellData.id
+                    let nwMovieDetails = try await BlockChainNetworking.NWNetworkController.fetchMovieDetails(id: id)
+                    
+                    print("🎥 Movie fetched! For \(communityCellData.title) [\(communityCellData.id)]")
+                    print(nwMovieDetails)
+                    
+                    router.pushMovieDetails(nwMovieDetails: nwMovieDetails)
+                    
+                } catch {
+                    print("🧌 Unable to fetch movie details (Network): \(error.localizedDescription)")
+                    
+                    router.rootViewModel.showError("Oops!", "Looks like we couldn't fetch the data! Check your connection!")
+                    
+                }
+                _isFetchingDetails = false
+            }
+        }
+    }
     
-    @ObservationIgnored private var _addDownloadItems = [CommunityCellModel]()
-    @ObservationIgnored private var _checkCacheDownloadItems = [CommunityCellModel]()
-}
+    @MainActor func handleNumberOfCellsMayHaveChanged() {
+        
+        let maximumNumberOfVisibleCells = staticGridLayout.getMaximumNumberOfVisibleCells()
+        
+        if gridCellModels.count < maximumNumberOfVisibleCells {
+            
+            let numberToAdd = (maximumNumberOfVisibleCells - gridCellModels.count)
+            
+            print("🎡 Visible Cell Count Changed, We Need To Add \(numberToAdd) Cells.")
+            
+            var index = 0
+            while index < numberToAdd {
+                let gridCellModel = _withdrawGridCellModel()
+                gridCellModel.id = index
+                gridCellModels.append(gridCellModel)
+                index += 1
+            }
+        }
+        
+        if gridCellModels.count > maximumNumberOfVisibleCells {
+            let numberToRemove = gridCellModels.count - maximumNumberOfVisibleCells
+            
+            print("🎢 Visible Cell Count Changed, We Need To Remove \(numberToRemove) Cells.")
+            
+            var index = gridCellModels.count - numberToRemove
+            while index < gridCellModels.count {
+                let gridCellModel = gridCellModels[index]
+                _depositGridCellModel(gridCellModel)
+                index += 1
+            }
+            gridCellModels.removeLast(numberToRemove)
+        }
+        
+        handleVisibleCellsMayHaveChanged()
+    }
+    
+    private var _gridCellModelsTemp = [GridCellModel]()
+    private var _layoutGridCellIndicesTemp = [Int]()
+    
+    @MainActor func handleVisibleCellsMayHaveChanged() {
+        
+        if staticGridLayout.isAnyItemPresent {
+            isAnyItemPresent = true
+        }
+        
+        let firstCellIndexOnScreen = staticGridLayout.getFirstCellIndexOnScreen()
+        let lastCellIndexOnScreen = staticGridLayout.getLastCellIndexOnScreen()
+        
+        // List of cells we can write to.
+        _gridCellModelsTemp.removeAll(keepingCapacity: true)
+        
+        var cellsWhichExisted = [Int]()
+        var cellsWhichNew = [Int]()
+        
+        
+        for gridCellModel in gridCellModels {
+            if let communityCellData = gridCellModel.communityCellData {
+                let doesExistInLayout = (communityCellData.index >= firstCellIndexOnScreen && communityCellData.index <= lastCellIndexOnScreen)
+                if doesExistInLayout {
+                    // We CANNOT overwrite this cell.
+                    
+                    cellsWhichExisted.append(communityCellData.index)
+                    
+                } else {
+                    // We can overwrite this cell.
+                    _gridCellModelsTemp.append(gridCellModel)
+                    gridCellModel.isVisible = false
+                    gridCellModel.communityCellData = nil
+                    cellsWhichNew.append(communityCellData.index)
+                }
+            } else {
+                // We can overwrite this cell.
+                _gridCellModelsTemp.append(gridCellModel)
+                gridCellModel.isVisible = false
+                gridCellModel.communityCellData = nil
+            }
+        }
+        
+        cellsWhichExisted.sort()
+        cellsWhichNew.sort()
+        
+        
+        
+        
+        
+        // These will be the ones we need to freshly add...
+        _layoutGridCellIndicesTemp.removeAll(keepingCapacity: true)
+        
+        var checkLayoutIndex = firstCellIndexOnScreen
+        
+        while checkLayoutIndex <= lastCellIndexOnScreen {
+            
+            var doesExistAndVisibleOnScreen = false
+            
+            for gridCellModel in gridCellModels {
+                if gridCellModel.isVisible {
+                    if let communityCellData = gridCellModel.communityCellData {
+                        if communityCellData.index == checkLayoutIndex {
+                            doesExistAndVisibleOnScreen = true
+                        }
+                    }
+                }
+            }
+            
+            if doesExistAndVisibleOnScreen {
+                // We don't need to do anything with this one,
+                // it's already handled properly.
+            } else {
+                _layoutGridCellIndicesTemp.append(checkLayoutIndex)
+            }
+            
+            checkLayoutIndex += 1
+        }
+        
+        
+        let lci = _layoutGridCellIndicesTemp.sorted()
+        
+        print("[JACK] layout cells = \(firstCellIndexOnScreen) to \(lastCellIndexOnScreen)")
+        print("[JACK] cellsWhichExisted = \(cellsWhichExisted)")
+        print("[JACK] LAYOUT CELLS = \(lci)")
+        
+        
+        print("[JACK] Loop Capz [\(_layoutGridCellIndicesTemp.count) and \(_gridCellModelsTemp.count)] With \(gridCellModels.count) to PICK FROM")
+        
+        var visibleCellIndex = 0
+        while (visibleCellIndex < _layoutGridCellIndicesTemp.count) && (visibleCellIndex < _gridCellModelsTemp.count) {
+            
+            let cellIndex = _layoutGridCellIndicesTemp[visibleCellIndex]
+            let gridCellModel = _gridCellModelsTemp[visibleCellIndex]
+            
+            gridCellModel.isVisible = true
+            gridCellModel.x = staticGridLayout.getCellX(cellIndex: cellIndex)
+            gridCellModel.y = staticGridLayout.getCellY(cellIndex: cellIndex)
+            gridCellModel.width = staticGridLayout.getCellWidth(cellIndex: cellIndex)
+            gridCellModel.height = staticGridLayout.getCellHeight(cellIndex: cellIndex)
+            
+            print("gridCellModel cellIndex = \(cellIndex) id \(gridCellModel.id), x: \(gridCellModel.x) y: \(gridCellModel.y) w: \(gridCellModel.width) h: \(gridCellModel.height)")
+            
+            guard let communityCellData = getCommunityCellData(at: cellIndex) else {
+                gridCellModel.state = .missingModel
+                visibleCellIndex += 1
+                continue
+            }
+            
+            gridCellModel.communityCellData = communityCellData
+            
+            if let image = getCellImage(at: cellIndex) {
+                gridCellModel.state = .success(image)
+            } else if _imageFailedSet.contains(cellIndex) {
+                gridCellModel.state = .error
+            } else {
+                gridCellModel.state = .illegal
+            }
+            
+            visibleCellIndex += 1
+        }
+        
+        //for c in gridCellModels {
+        //    print("cell \(cell.index)")
+        //}
+        
+        //var layoutCellModelIndex = 0
+        
+        //_gridCellModelsForVisibility
+        
+        
+        // This will be our process
+        
+        //isVisible
+        
+        
 
-// This is for computing download priorities.
-extension CommunityViewModel {
+        /*
+        var newGridCellModels = [GridCellModel]()
+        
+        for layoutCellModel in layoutCellModels {
+            
+            let index = layoutCellModel.index
+            
+            var cellModel = GridCellModel()
+         cellModel.index = index
+         
+         cellModel.x = staticGridLayout.getX(at: index)
+         cellModel.y = staticGridLayout.getY(at: index)
+         cellModel.width = staticGridLayout.getWidth(at: index)
+         cellModel.height = staticGridLayout.getHeight(at: index)
+         
+         guard let cellData = getCommunityCellData(at: layoutCellModel.index) else {
+             
+             cellModel.state = .missingModel
+             newCellModels.append(cellModel)
+             continue
+         }
+            
+            cellModel.data = cellData
+            
+            if let image = getCellImage(at: index) {
+                cellModel.state = .success(image)
+            } else if _imageFailedSet.contains(index) {
+                cellModel.state = .error
+            } else {
+                cellModel.state = .illegal
+            }
+            newCellModels.append(cellModel)
+        }
+        */
+        
+        fetchMorePagesIfNecessary()
+        Task { @MainActor in
+            await assignTasksToDownloader()
+        }
+    }
     
     // Distance from the left of the container / screen.
     // Distance from the top of the container / screen.
@@ -290,29 +1017,36 @@ extension CommunityViewModel {
         return (px + py)
     }
     
-    @MainActor func assignTasksToDownloader() {
+    // If you bunch up calls to this, they will only execute 10 times per second.
+    // This should be the single point of entry for fetching things out of the image cache...
+    @MainActor func assignTasksToDownloader() async {
+        
         if isAssigningTasksToDownloader {
             isAssigningTasksToDownloaderEnqueued = true
             return
         }
         
-        if layout.numberOfCells() <= 0 {
-            print("Exiting Assign, No Cells...")
+        if staticGridLayout.getNumberOfCells() <= 0 {
             return
         }
         
-        let containerTopY = layout.getContainerTop()
-        let containerBottomY = layout.getContainerBottom()
+        let containerTopY = staticGridLayout.getContainerTop()
+        let containerBottomY = staticGridLayout.getContainerBottom()
         if containerBottomY <= containerTopY {
-            print("Exiting Assign, Zero Frame...")
             return
         }
         
-        let firstCellIndexOnScreen = layout.firstCellIndexOnScreen() - Self.probeAheadOrBehindRangeForDownloads
-        let lastCellIndexOnScreen = layout.lastCellIndexOnScreen() + Self.probeAheadOrBehindRangeForDownloads
+        var firstCellIndexOnScreen = staticGridLayout.getFirstCellIndexOnScreen() - Self.probeAheadOrBehindRangeForDownloads
+        if firstCellIndexOnScreen < 0 {
+            firstCellIndexOnScreen = 0
+        }
+        
+        var lastCellIndexOnScreen = staticGridLayout.getLastCellIndexOnScreen() + Self.probeAheadOrBehindRangeForDownloads
+        if lastCellIndexOnScreen >= numberOfCells {
+            lastCellIndexOnScreen = numberOfCells - 1
+        }
         
         guard lastCellIndexOnScreen > firstCellIndexOnScreen else {
-            print("Exiting Assign, First/Last Index Foob...")
             return
         }
         
@@ -320,227 +1054,205 @@ extension CommunityViewModel {
         
         isAssigningTasksToDownloader = true
         
-        
         _addDownloadItems.removeAll(keepingCapacity: true)
         _checkCacheDownloadItems.removeAll(keepingCapacity: true)
         
-        Task { @MainActor in
-            
-            var cellIndex = firstCellIndexOnScreen
-            while cellIndex < lastCellIndexOnScreen {
-                if let communityCellModel = getCommunityCellModel(at: cellIndex) {
+        var cellIndex = firstCellIndexOnScreen
+        while cellIndex < lastCellIndexOnScreen {
+            if let communityCellData = getCommunityCellData(at: cellIndex) {
+                if let key = communityCellData.key {
                     
-                    let isEnqueuedInDownloader = await downloader.isEnqueued(communityCellModel)
+                    if _imageDict[key] != nil {
+                        // We already have this image, don't do anything at all with it
+                        cellIndex += 1
+                        continue
+                    }
                     
-                    if (!_failedSet.contains(communityCellModel.index)) &&
-                        (_imageDict[communityCellModel.index] == nil) &&
-                        (!isEnqueuedInDownloader) &&
-                        (!_downloadingSet.contains(cellIndex)) {
-                        
-                        if _didFinishCheckCacheSet.contains(communityCellModel.index) {
-                            _downloadingSet.insert(cellIndex)
-                            _addDownloadItems.append(communityCellModel)
-                        } else if !_didStartCheckCacheSet.contains(communityCellModel.index) {
-                            _checkCacheDownloadItems.append(communityCellModel)
-                        }
+                    if _imageFailedSet.contains(communityCellData.index) {
+                        // This one failed already, don't do anything at all with it
+                        cellIndex += 1
+                        continue
+                    }
+                    
+                    if _imageDidCheckCacheSet.contains(communityCellData.index) {
+                        // We have already checked the image cache for this,
+                        // so we should just download it. No need to hit the
+                        // cache an extra time with this request.
+                        _addDownloadItems.append(communityCellData)
+                    } else {
+                        // We have never checked the image cache, let's first
+                        // check the image cache, then if it whiffs, we can
+                        // download it in this pass as well...
+                        _checkCacheDownloadItems.append(communityCellData)
                     }
                 }
-                cellIndex += 1
             }
-            
-            Task { @DirtyImageCacheActor in
-                
-                var keysToCheck = [String]()
-                for cellData in _checkCacheDownloadItems {
-                    await MainActor.run {
-                        _ = _didStartCheckCacheSet.insert(cellData.index)
-                    }
-                    keysToCheck.append(cellData.cacheKey)
-                }
-                
-                let cacheDict = await imageCache.batchRetrieve(keysToCheck)
-                
-                var missedCacheKeys = Set(keysToCheck)
-                for (key, _) in cacheDict {
-                    missedCacheKeys.remove(key)
-                }
-                
-                for key in missedCacheKeys {
-                    await MainActor.run {
-                        if let cellData = self._keyBackMap[key] {
-                            self._didFinishCheckCacheSet.insert(cellData.index)
-                        }
-                    }
-                }
-                
-                var shouldTriggerLayoutHash = false
-                
-                if missedCacheKeys.count > 0 {
-                    shouldTriggerLayoutHash = true
-                    isAssigningTasksToDownloaderEnqueued = true
-                    triggerLayoutHash()
-                }
-                
-                var listOfKeysAndImages = [(key: String, image: UIImage)]()
-                for (key, image) in cacheDict {
-                    listOfKeysAndImages.append((key, image))
-                }
-                
-                var index = 0
-                while index < listOfKeysAndImages.count {
-                    
-                    var loopIndex = index
-                    let capIndex = index + 3
-                    
-                    while loopIndex < listOfKeysAndImages.count && loopIndex < capIndex {
-                        
-                        let keyAndImage = listOfKeysAndImages[loopIndex]
-                        await MainActor.run {
-                            if let cellData = self._keyBackMap[keyAndImage.key] {
-                                self._didFinishCheckCacheSet.insert(cellData.index)
-                                self._imageDict[cellData.index] = keyAndImage.image
-                                print("Image @ \(cellData.index) from CACHE")
-                                
-                            }
-                        }
-                        loopIndex += 1
-                    }
-                    
-                    try? await Task.sleep(nanoseconds: 100_000)
-                    
-                    shouldTriggerLayoutHash = true
-                    
-                    index += 3
-                }
-                
-                
-                if shouldTriggerLayoutHash {
-                    // We could get stuck, as we updated the _imageDict
-                    isAssigningTasksToDownloaderEnqueued = true
-                    triggerLayoutHash()
-                }
-                
-                
-                Task { @DirtyImageDownloaderActor in
-                    
-                    
-                    downloader.addDownloadTaskBatch(_addDownloadItems)
-                    
-                    let taskList = downloader.taskList
-                    
-                    _priorityCommunityCellModels.removeAll(keepingCapacity: true)
-                    _priorityList.removeAll(keepingCapacity: true)
-                    
-                    for task in taskList {
-                        let cellIndex = task.index
-                        if let communityCellModel = await model.getCommunityCellModel(at: cellIndex) {
-                            
-                            let cellLeftX = await layout.getCellLeft(withCellIndex: cellIndex)
-                            let cellTopY = await layout.getCellTop(withCellIndex: cellIndex)
-                            let cellBottomY = await layout.getCellBottom(withCellIndex: cellIndex)
-                            let cellRangeY = cellTopY...cellBottomY
-                            
-                            let overlap = containerRangeY.overlaps(cellRangeY)
-                            
-                            if overlap {
-                                
-                                let distX = cellLeftX
-                                let distY = max(cellTopY - containerTopY, 0)
-                                let priority = priority(distX: distX, distY: distY)
-                                
-                                _priorityCommunityCellModels.append(communityCellModel)
-                                _priorityList.append(priority)
-                            } else {
-                                _priorityCommunityCellModels.append(communityCellModel)
-                                _priorityList.append(0)
-                            }
-                        }
-                    }
-                    
-                    downloader.setPriorityBatch(_priorityCommunityCellModels, _priorityList)
-                    
-                    await downloader.startTasksIfNecessary()
-                    
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    
-                    await MainActor.run {
-                        isAssigningTasksToDownloader = false
-                        if isAssigningTasksToDownloaderEnqueued {
-                            isAssigningTasksToDownloaderEnqueued = false
-                            assignTasksToDownloader()
-                        }
-                    }
-                }
+            cellIndex += 1
+        }
+        
+        await _loadUpImageCacheAndHandOffMissesToDownloadList()
+        
+        await _loadUpDownloaderAndComputePriorities(containerTopY: containerTopY, containerRangeY: containerRangeY)
+        
+        await downloader.startTasksIfNecessary()
+        
+        //
+        // Let's not bunch up requests calls to this.
+        // If they bunch up, we enqueue another call.
+        //
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        
+        isAssigningTasksToDownloader = false
+        if isAssigningTasksToDownloaderEnqueued {
+            Task { @MainActor in
+                isAssigningTasksToDownloaderEnqueued = false
+                await assignTasksToDownloader()
             }
         }
     }
-}
-
-extension CommunityViewModel: GridLayoutDelegate {
-    @MainActor func cellsDidEnterScreen(_ cellIndices: [Int]) {
-
-        numberOfCells = layout.numberOfCells()
-        allVisibleCellModels = layout.getAllVisibleCellModels()
-        layoutWidth = layout.width
-        layoutHeight = layout.height
-        fetchMorePagesIfNecessary()
-
-        triggerLayoutHash()
+    
+    @MainActor func _loadUpImageCacheAndHandOffMissesToDownloadList() async {
+        if _checkCacheDownloadItems.count > 0 {
+            
+            _checkCacheKeys.removeAll(keepingCapacity: true)
+            
+            for communityCellData in _checkCacheDownloadItems {
+                _imageDidCheckCacheSet.insert(communityCellData.index)
+                if let key = communityCellData.key {
+                    let keyAndIndexPair = KeyAndIndexPair(key: key, index: communityCellData.index)
+                    _checkCacheKeys.append(keyAndIndexPair)
+                }
+            }
+            
+            let cacheDict = await imageCache.batchRetrieve(_checkCacheKeys)
+            
+            var countNotInCache = 0
+            var countInCache = 0
+            // If it was NOT in the cache, let's download it...
+            for communityCellData in _checkCacheDownloadItems {
+                if let key = communityCellData.key {
+                    let keyAndIndexPair = KeyAndIndexPair(key: key, index: communityCellData.index)
+                    if cacheDict[keyAndIndexPair] === nil {
+                        countNotInCache += 1
+                        _addDownloadItems.append(communityCellData)
+                    } else {
+                        countInCache += 1
+                    }
+                }
+            }
+            
+            if countNotInCache > 0 {
+                print("⚙️ \(countNotInCache) images were not in the cache, adding to downloader...")
+            }
+            
+            if countInCache > 0 {
+                print("📝 \(countInCache) images were pulled from the cache, no need to download...")
+            }
+            
+            // If it WAS in the cache, let's store the image and
+            // update the UI. This was a successful cache hit!
+            for (keyAndIndexPair, image) in cacheDict {
+                _imageDict[keyAndIndexPair.key] = image
+                //if let communityCellData = getCommunityCellData(at: keyAndIndexPair.index) {
+                    //movieGridView?.handleImageChanged(index: communityCellData.index)
+                    //cellNeedsUpdatePublisher.send(keyAndIndexPair.index)
+                //}
+                
+                // Let the UI update.
+                try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+        }
     }
     
-    @MainActor func cellsDidLeaveScreen(_ cellIndices: [Int]) {
+    @MainActor func _loadUpDownloaderAndComputePriorities(containerTopY: Int, containerRangeY: ClosedRange<Int>) async {
+        
+        await downloader.addDownloadTaskBatch(_addDownloadItems)
+        
+        let taskList = await downloader.taskList
+        
+        _priorityCommunityCellDatas.removeAll(keepingCapacity: true)
+        _priorityList.removeAll(keepingCapacity: true)
+        
+        for task in taskList {
+            let cellIndex = task.index
+            if let communityCellData = getCommunityCellData(at: cellIndex) {
+                
+                let cellLeftX = staticGridLayout.getCellLeft(cellIndex: cellIndex)
+                let cellTopY = staticGridLayout.getCellTop(cellIndex: cellIndex)
+                let cellBottomY = staticGridLayout.getCellBottom(cellIndex: cellIndex)
+                let cellRangeY = cellTopY...cellBottomY
+                
+                let overlap = containerRangeY.overlaps(cellRangeY)
+                
+                if overlap {
+                    
+                    let distX = cellLeftX
+                    let distY = max(cellTopY - containerTopY, 0)
+                    let priority = priority(distX: distX, distY: distY)
+                    
+                    _priorityCommunityCellDatas.append(communityCellData)
+                    _priorityList.append(priority)
+                } else {
+                    _priorityCommunityCellDatas.append(communityCellData)
+                    _priorityList.append(0)
+                }
+            }
+        }
+        await downloader.setPriorityBatch(_priorityCommunityCellDatas, _priorityList)
+    }
+}
 
-        numberOfCells = layout.numberOfCells()
-        allVisibleCellModels = layout.getAllVisibleCellModels()
-        layoutWidth = layout.width
-        layoutHeight = layout.height
-        fetchMorePagesIfNecessary()
-        triggerLayoutHash()
+extension CommunityViewModel: StaticGridLayoutDelegate {
+    
+    @MainActor func layoutDidChangeVisibleCells() {
+        print("[JACK] layoutDidChangeVisibleCells FCI: \(staticGridLayout.getFirstCellIndexOnScreen()) LCI: \(staticGridLayout.getLastCellIndexOnScreen())")
+        handleVisibleCellsMayHaveChanged()
+    }
+    
+    @MainActor func layoutDidChangeWidth() {
+        layoutWidth = staticGridLayout.width
+        print("[JACK] layoutDidChangeWidth ==> \(layoutWidth)")
+    }
+    
+    @MainActor func layoutDidChangeHeight() {
+        layoutHeight = staticGridLayout.height
+        print("[JACK] layoutDidChangeHeight ==> \(layoutHeight)")
+    }
+    
+    @MainActor func layoutContainerSizeDidChange() {
+        print("[JACK] layoutContainerSizeDidChange")
+        handleNumberOfCellsMayHaveChanged()
     }
 }
 
 extension CommunityViewModel: DirtyImageDownloaderDelegate {
     @MainActor func dataDownloadDidStart(_ index: Int) {
-        _ = self._activeSet.insert(index)
-        triggerLayoutHash()
+        
     }
     
     @MainActor func dataDownloadDidSucceed(_ index: Int, image: UIImage) {
-        
-        print("Image @ \(index) from DOWNLOAD")
-        
-        _activeSet.remove(index)
-        _failedSet.remove(index)
-        
-        _didStartCheckCacheSet.remove(index)
-        _didFinishCheckCacheSet.remove(index)
-        
-        _downloadingSet.remove(index)
-        
-        _imageDict[index] = image
-        
-        /*
-        if let communityCellModel = model.getCommunityCellModel(at: index) {
-            Task {
-                await self.imageCache.cacheImage(image, communityCellModel.cacheKey)
+        //print("✅ Image download success @ \(index)")
+        _imageFailedSet.remove(index)
+        if let communityCellData = getCommunityCellData(at: index) {
+            if let key = communityCellData.key {
+                _imageDict[key] = image
+                
+                /*
+                Task {
+                    await self.imageCache.cacheImage(image, key)
+                }
+                */
+                
             }
         }
-        */
-        
-        triggerLayoutHash()
     }
     
     @MainActor func dataDownloadDidCancel(_ index: Int) {
-        _activeSet.remove(index)
-        _downloadingSet.remove(index)
-        triggerLayoutHash()
+        //print("🧩 We had an image cancel its download @ \(index)")
     }
     
     @MainActor func dataDownloadDidFail(_ index: Int) {
-        _activeSet.remove(index)
-        _downloadingSet.remove(index)
-        _ = _failedSet.insert(index)
-        
-        triggerLayoutHash()
+        //print("🎲 We had an image fail to download @ \(index)")
+        _imageFailedSet.insert(index)
     }
 }

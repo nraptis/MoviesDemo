@@ -142,8 +142,7 @@ final class FileUtils {
         }
     }
     
-    @discardableResult
-    func savePNG(image: UIImage?, filePath: String?) -> Bool {
+    @discardableResult func savePNG(image: UIImage?, filePath: String?) -> Bool {
         if let filePath = filePath {
             if image != nil {
                 if let imageData = image?.pngData() {

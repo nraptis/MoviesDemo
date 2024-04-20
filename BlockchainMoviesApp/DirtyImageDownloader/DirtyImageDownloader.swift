@@ -20,7 +20,8 @@ protocol DirtyImageDownloaderDelegate: AnyObject {
 
 class DirtyImageDownloader {
     
-    var paused = false
+    var isPaused = false
+    var isBlocked = false
     
     weak var delegate: DirtyImageDownloaderDelegate?
     
@@ -50,10 +51,16 @@ class DirtyImageDownloader {
     
     @DirtyImageDownloaderActor func startTasksIfNecessary() async {
         
+        if isBlocked || isPaused {
+            return
+        }
+        
         var numberOfActiveDownloads = 0
         
         for (key, task) in taskDict {
-            if task.item == nil || task.isInvalidated == true || task.isCompleted == true {
+            if task.item === nil ||
+                task.downloader === nil ||
+                task.isInvalidated == true {
                 _purgeList.append(key)
             } else {
                 if task.isActive {
@@ -82,27 +89,33 @@ class DirtyImageDownloader {
         }
         
         await withTaskGroup(of: Void.self) { taskGroup in
-            
             for taskToStart in tasksToStart {
-                
-                if let item = taskToStart.item {
-                    let index = taskToStart.index
-                    await MainActor.run {
-                        delegate?.dataDownloadDidStart(index)
-                    }
+                let index = taskToStart.index
+                await MainActor.run {
+                    delegate?.dataDownloadDidStart(index)
                 }
+                
                 taskGroup.addTask {
                     await taskToStart.fire()
                 }
-                
             }
         }
     }
     
     @DirtyImageDownloaderActor func forceRestart(_ item: any DirtyImageDownloaderType) async {
+        
+        if isBlocked {
+            return
+        }
+        
         let index = item.index
         await removeDownloadTask(item)
         addDownloadTask(item)
+        
+        if isPaused {
+            return
+        }
+        
         if let task = taskDict[item.index] {
             await task.fire()
             delegate?.dataDownloadDidStart(index)
@@ -110,17 +123,25 @@ class DirtyImageDownloader {
     }
     
     @DirtyImageDownloaderActor func addDownloadTaskBatch(_ items: [any DirtyImageDownloaderType]) {
+        
+        if isBlocked {
+            return
+        }
+        
         for item in items {
             addDownloadTask(item)
         }
     }
     
-    @DirtyImageDownloaderActor private func addDownloadTask(_ item: any DirtyImageDownloaderType) {
+    @DirtyImageDownloaderActor func addDownloadTask(_ item: any DirtyImageDownloaderType) {
+        
+        if isBlocked {
+            return
+        }
+        
         var shouldCreate = true
-        if let existingTask = taskDict[item.index] {
-            if !(existingTask.isActive || existingTask.isCompleted || existingTask.isInvalidated) {
-                shouldCreate = false
-            }
+        if taskDict[item.index] !== nil {
+            shouldCreate = false
         }
         
         if shouldCreate {
@@ -168,7 +189,7 @@ class DirtyImageDownloader {
             var highestPriority = Int.min
             var chosenTask: DirtyImageDownloaderTask?
             for (_, task) in taskDict {
-                if !task.isActive && !task.isVisited {
+                if !task.isActive && !task.isVisited && task.priorityHasBeenSetAtLeastOnce {
                     if (chosenTask == nil) || (task.priority > highestPriority) {
                         highestPriority = task.priority
                         chosenTask = task
@@ -184,12 +205,10 @@ class DirtyImageDownloader {
             
             loopIndex += 1
         }
-        
-        
         return result
     }
     
-    @DirtyImageDownloaderActor func isEnqueued(_ item: any DirtyImageDownloaderType) -> Bool {
+    @DirtyImageDownloaderActor func isDownloading(_ item: any DirtyImageDownloaderType) -> Bool {
         var result = false
         if taskDict[item.index] != nil {
             result = true
@@ -197,7 +216,7 @@ class DirtyImageDownloader {
         return result
     }
     
-    @DirtyImageDownloaderActor func isActivelyDownloading(_ item: any DirtyImageDownloaderType) -> Bool {
+    @DirtyImageDownloaderActor func isDownloadingActively(_ item: any DirtyImageDownloaderType) -> Bool {
         var result = false
         if let task = taskDict[item.index] {
             result = task.isActive

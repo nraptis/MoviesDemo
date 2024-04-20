@@ -14,13 +14,10 @@ protocol ThumbGridConforming: Identifiable {
 struct ThumbGrid<Item, ItemView>: View where Item: ThumbGridConforming, ItemView: View {
     
     let list: [Item]
-    let layout: GridLayout
     let content: (Item) -> ItemView
     
     @MainActor func thumb(item: Item) -> some View {
-        let x = layout.getX(at: item.index)
-        let y = layout.getY(at: item.index)
-        return content(item).offset(x: x, y: y)
+        return content(item)
     }
     
     var body: some View {

@@ -98,4 +98,43 @@ class DirtyImageCacheFileRecycler {
         result.purge()
         return result
     }
+    
+    func save(fileBuffer: FileBuffer) {
+        fileBuffer.writeInt32(Int32(count))
+        var node: DirtyImageCacheFileRecyclerNode! = tail.prev
+        while node !== head {
+            node.save(fileBuffer: fileBuffer)
+            node = node.prev
+        }
+    }
+    
+    func load(fileBuffer: FileBuffer) {
+        clear()
+        
+        guard let numberOfNodesSaved = fileBuffer.readInt32() else {
+            return
+        }
+        
+        if numberOfNodesSaved < 0 || numberOfNodesSaved > 8192 { return }
+        
+        var index = 0
+        while index < numberOfNodesSaved {
+            
+            guard let _imageNumber = fileBuffer.readInt32() else {
+                return
+            }
+            guard let _key = fileBuffer.readString() else {
+                return
+            }
+            guard let _imagePath = fileBuffer.readString() else {
+                return
+            }
+            let key = _key
+            let imageNumber = Int(_imageNumber)
+            let imagePath = _imagePath
+            
+            put(key, imageNumber, imagePath)
+            index += 1
+        }
+    }
 }

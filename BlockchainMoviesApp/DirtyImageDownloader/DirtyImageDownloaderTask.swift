@@ -14,11 +14,9 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
     
     @DirtyImageDownloaderActor var isActive = false
     @DirtyImageDownloaderActor private(set) var priority: Int = 0
-    
     @DirtyImageDownloaderActor private(set) var isInvalidated = false
-    @DirtyImageDownloaderActor private(set) var isCompleted = false
+    @DirtyImageDownloaderActor private(set) var priorityHasBeenSetAtLeastOnce = false
     
-    //private(set) var id: Int
     private(set) var index: Int
     
     var isVisited = false
@@ -28,12 +26,12 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
     init(downloader: DirtyImageDownloader, item: any DirtyImageDownloaderType) {
         self.downloader = downloader
         self.item = item
-        //self.id = item.id
         self.index = item.index
     }
     
     @DirtyImageDownloaderActor func setPriority(_ priority: Int) {
         self.priority = priority
+        priorityHasBeenSetAtLeastOnce = true
     }
     
     @DirtyImageDownloaderActor func invalidate() async {
@@ -45,12 +43,12 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         task = nil
         
         if let downloader = downloader {
+            self.downloader = nil
             await MainActor.run {
                 downloader.handleDownloadTaskDidInvalidate(task: self)
             }
         }
         
-        downloader = nil
         item = nil
     }
     
@@ -66,39 +64,35 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         guard let item = self.item else {
             self.isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
+            
             return
         }
         
         guard let urlString = item.urlString else {
             self.isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
+            
             return
         }
         
         guard let url = URL(string: urlString) else {
             self.isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
             return
         }
         
         var request = URLRequest(url: url)
-        request.timeoutInterval = 30.0
+        request.timeoutInterval = 5.0
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        
-        /*
-        let urlSession = URLSession(configuration: URLSessionConfiguration.default,
-                                    delegate: self,
-                                    delegateQueue: nil)
-         */
         
         var _data: Data?
         var _response: URLResponse?
@@ -107,12 +101,12 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
             let (data, response) = try await URLSession.shared.data(for: request)
             _data = data
             _response = response
-        } catch let error {
+        } catch {
             self.isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
             return
         }
         
@@ -122,21 +116,19 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         guard let httpResponse = response as? HTTPURLResponse else {
             isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
             return
         }
         guard (200...299).contains(httpResponse.statusCode) else {
             isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
             return
         }
-        
-        isCompleted = true
         
         if isInvalidated {
             isActive = false
@@ -146,47 +138,55 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         guard let data = data else {
             isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
+            
             return
         }
         
         guard let image = UIImage(data: data) else {
             isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
+            
             return
         }
         
-        //print("Image Downloaded For \(index) @ \(Int(image.size.width + 0.5)) x \(Int(image.size.height + 0.5))")
-        
-        var width = CGFloat(200.0)
-        var height = CGFloat(300.0)
-        
-        if Device.isPad {
-            width = 100.0
-            height = 150.0
-        }
+        let width = CGFloat(200.0)
+        let height = CGFloat(300.0)
         
         guard let image = image.resizeAspectFill(CGSize(width: width, height: height)) else {
             isActive = false
             await MainActor.run {
+                self.downloader = nil
                 downloader.handleDownloadTaskDidFail(task: self)
             }
-            self.downloader = nil
+            
+            return
+        }
+        
+        //TODO: Remove
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        
+        //TODO: Remove
+        if Int.random(in: 0...5) == 3 {
+            isActive = false
+            await MainActor.run {
+                self.downloader = nil
+                downloader.handleDownloadTaskDidFail(task: self)
+            }
+            
             return
         }
         
         isActive = false
         await MainActor.run {
+            self.downloader = nil
+            self.item = nil
             downloader.handleDownloadTaskDidSucceed(task: self, image: image)
         }
-        self.downloader = nil
-        self.item = nil
-        
     }
-    
 }

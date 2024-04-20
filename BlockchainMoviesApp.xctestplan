@@ -1,0 +1,22 @@
+{
+  "configurations" : [
+    {
+      "id" : "4C158B4D-E2A7-4B08-9868-E6C98B1FF61A",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:BlockchainMoviesApp.xcodeproj",
+      "identifier" : "E83EA6A42BC4E9B20076D6BB",
+      "name" : "BlockchainMoviesApp"
+    }
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

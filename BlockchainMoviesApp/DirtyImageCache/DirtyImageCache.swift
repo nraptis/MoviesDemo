@@ -11,12 +11,26 @@ import UIKit
     static let shared = DirtyImageDownloaderActor()
 }
 
+struct KeyAndIndexPair {
+    let key: String
+    let index: Int
+}
+
+extension KeyAndIndexPair: Equatable {
+    
+}
+
+extension KeyAndIndexPair: Hashable {
+    
+}
+
 class DirtyImageCache {
     
     private let name: String
     
     @DirtyImageCacheActor
     private var fileRecycler = DirtyImageCacheFileRecycler(capacity: 4096)
+    
     
     /// Creates a unique file cache object.
     /// - Parameters:
@@ -26,9 +40,6 @@ class DirtyImageCache {
     ///                  larger than the max number of image displayed on any given screen  (will be flushed on memory warning)
     init(name: String) {
         self.name = name
-        
-        //TODO: Load Here...
-        
     }
     
     @DirtyImageCacheActor func purge() async {
@@ -54,23 +65,37 @@ class DirtyImageCache {
             if let node = self.fileRecycler.get(key) {
                 try? await Task.sleep(nanoseconds: 100_000)
                 node.updateImage(image)
+                Task {
+                    await save()
+                }
             }
         }
     }
     
-    @DirtyImageCacheActor func batchRetrieve(_ keys: [String]) async -> [String: UIImage] {
-        var result = [String: UIImage]()
-        for key in keys {
+    @DirtyImageCacheActor func batchRetrieve(_ keyAndIndexPairs: [KeyAndIndexPair]) async -> [KeyAndIndexPair: UIImage] {
+        var result = [KeyAndIndexPair: UIImage]()
+        for keyAndIndexPair in keyAndIndexPairs {
             var image: UIImage?
-            if let node = self.fileRecycler.get(key) {
+            if let node = self.fileRecycler.get(keyAndIndexPair.key) {
                 image = node.loadImage()
             }
             if let image = image {
-                result[key] = image
+                result[keyAndIndexPair] = image
             }
             try? await Task.sleep(nanoseconds: 100_000)
         }
         return result
+    }
+    
+    @DirtyImageCacheActor func singleRetrieve(_ keyAndIndexPair: KeyAndIndexPair) async -> UIImage? {
+        var image: UIImage?
+        if let node = self.fileRecycler.get(keyAndIndexPair.key) {
+            image = node.loadImage()
+        }
+        if let image = image {
+            return image
+        }
+        return nil
     }
     
     private func firstMissingPositive(_ nums: [Int]) -> Int {
@@ -86,5 +111,48 @@ class DirtyImageCache {
             }
         }
         return nums.count + 1
+    }
+    
+    lazy private var filePath: String = {
+        let fileName = "image_cache_" + name + ".cache"
+        return FileUtils.shared.getDocumentPath(fileName: fileName)
+    }()
+    
+    @DirtyImageCacheActor private var _isSaving = false
+    @DirtyImageCacheActor private var _isSavingEnqueued = false
+    @DirtyImageCacheActor private func save() async {
+        if _isSaving {
+            _isSavingEnqueued = true
+            return
+        }
+        
+        let filePath = filePath
+        
+        _isSaving = true
+        
+        let fileBuffer = FileBuffer()
+        
+        fileRecycler.save(fileBuffer: fileBuffer)
+        
+        fileBuffer.save(filePath: filePath)
+        
+        // Sleep for 5 seconds...
+        try? await Task.sleep(nanoseconds: 5_000_000_000)
+        
+        _isSaving = false
+        
+        if _isSavingEnqueued {
+            Task { @DirtyImageCacheActor in
+                _isSavingEnqueued = false
+                await save()
+            }
+        }
+    }
+    
+    @DirtyImageCacheActor func load() {
+        let filePath = filePath
+        let fileBuffer = FileBuffer()
+        fileBuffer.load(filePath: filePath)
+        fileRecycler.load(fileBuffer: fileBuffer)
     }
 }

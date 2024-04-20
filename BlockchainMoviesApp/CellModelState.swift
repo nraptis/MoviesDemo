@@ -2,16 +2,18 @@
 //  CellModelState.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nicky Taylor on 4/19/24.
+//  Created by Nick Nameless on 4/19/24.
 //
 
 import UIKit
 
 enum CellModelState: Equatable {
+    
     case uninitialized
+    
     case downloading
     case downloadingActively
-    case hittingCache
+    
     case success(UIImage)
     
     case error

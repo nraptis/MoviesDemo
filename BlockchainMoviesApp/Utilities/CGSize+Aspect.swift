@@ -2,7 +2,7 @@
 //  CGSize+Aspect.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nicky Taylor on 4/9/24.
+//  Created by Nick Nameless on 4/9/24.
 //
 
 import UIKit

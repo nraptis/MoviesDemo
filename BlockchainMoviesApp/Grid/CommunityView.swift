@@ -2,7 +2,7 @@
 //  CommunityView.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nicky Taylor on 4/9/24.
+//  Created by Nick Nameless on 4/9/24.
 //
 
 import SwiftUI
@@ -67,7 +67,7 @@ struct CommunityView: View {
     @MainActor func guts(containerGeometry: GeometryProxy) -> some View {
         ScrollView {
             scrollContent(containerGeometry: containerGeometry)
-                .background(.random)
+                .background(DarkwingDuckTheme.gray100)
         }
         .listStyle(.plain)
         .refreshable {

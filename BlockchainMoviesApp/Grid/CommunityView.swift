@@ -2,7 +2,7 @@
 //  CommunityView.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/9/24.
+//  Created by "Nick" Django Raptis on 4/9/24.
 //
 
 import SwiftUI
@@ -54,38 +54,93 @@ struct CommunityView: View {
                         return guts(containerGeometry: geometry)
                     }
                 }
-                
                 getFooterBar(bottomBarHeight: CGFloat(bottomBarHeight))
             }
         }
-        .background(DarkwingDuckTheme.gray100)
+        .background(DarkwingDuckTheme.gray050)
     }
     
-    
-    
-    //@ViewBuilder
     @MainActor func guts(containerGeometry: GeometryProxy) -> some View {
-        ScrollView {
-            scrollContent(containerGeometry: containerGeometry)
-                .background(DarkwingDuckTheme.gray100)
+        
+        let containerFrame = containerGeometry.frame(in: .global)
+        let geometryWidth = containerFrame.width
+        let geometryHeight = containerFrame.height
+        
+        //
+        // This is a little bit tricky. We have bundled the
+        // error and no items view in with the scroll view.
+        // The loading view is really only there for the
+        // initial load. Once we get an item or an error,
+        // all the loading will be done with the pull-refresh.
+        //
+        var isScrollViewShowing = false
+        var isLoadingViewShowing = false
+        if communityViewModel.isAnyItemPresent {
+            isScrollViewShowing = true
+        } else {
+            if communityViewModel.isFetching {
+                isLoadingViewShowing = true
+            } else {
+                isScrollViewShowing = true
+            }
         }
-        .listStyle(.plain)
-        .refreshable {
-            await communityViewModel.refresh()
+        
+        return ZStack {
+            ScrollView {
+                scrollContent(containerGeometry: containerGeometry)
+                    .background(DarkwingDuckTheme.gray050)
+            }
+            .refreshable {
+                await communityViewModel.refresh()
+            }
+            .onAppear {
+                UIRefreshControl.appearance().tintColor = DarkwingDuckTheme._gray700
+            }
+            .opacity(isScrollViewShowing ? 1.0 : 0.0)
+            
+            LoadingView()
+                .frame(width: geometryWidth, height: geometryHeight)
+                .opacity(isLoadingViewShowing ? 1.0 : 0.0)
         }
+        .frame(width: geometryWidth, height: geometryHeight)
     }
     
     @MainActor func scrollContent(containerGeometry: GeometryProxy) -> some View {
+        
+        let containerFrame = containerGeometry.frame(in: .global)
+        let geometryWidth = containerFrame.width
+        let geometryHeight = containerFrame.height
         
         var contentHeight = communityViewModel.layoutHeight
         if contentHeight < containerGeometry.size.height {
             contentHeight = containerGeometry.size.height
         }
         
-        return ZStack {
+        var isGridShowing = false
+        var isNoItemsShowing = false
+        var isErrorShowing = false
+        
+        if communityViewModel.isAnyItemPresent {
+            isGridShowing = true
+        } else if communityViewModel.isNetworkErrorPresent {
+            isErrorShowing = true
+        } else {
+            isNoItemsShowing = true
+        }
+        
+        return ZStack(alignment: .top) {
             GeometryReader { scrollContentGeometry in
                 grid(containerGeometry, scrollContentGeometry)
             }
+            .opacity(isGridShowing ? 1.0 : 0.0)
+            
+            NoItemsView()
+                .frame(width: geometryWidth, height: geometryHeight)
+                .opacity(isNoItemsShowing ? 1.0 : 0.0)
+            
+            ErrorView(text: "An Error Occurred")
+                .frame(width: geometryWidth, height: geometryHeight)
+                .opacity(isErrorShowing ? 1.0 : 0.0)
         }
         .frame(width: communityViewModel.layoutWidth,
                height: contentHeight)
@@ -129,48 +184,15 @@ struct CommunityView: View {
                 }
                 Spacer()
             }
-            if communityViewModel.isNetworkErrorPresent {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .renderingMode(.template)
-                    .font(.system(size: CGFloat(min(bottomBarHeight - 8, 36))))
-                    .foregroundStyle(DarkwingDuckTheme.naughtyYellow)
-            }
-            
-            Button {
-                Task {
-                    await communityViewModel.fetchPopularMovies(page: communityViewModel.highestPageFetchedSoFar + 1)
-                }
-                /*
-                if communityViewModel.gridCellModels.count > 2 {
-                    
-                    let index1 = Int.random(in: 0..<communityViewModel.gridCellModels.count)
-                    let index2 = Int.random(in: 0..<communityViewModel.gridCellModels.count)
-                    print("Swapping \(index1) and \(index2)")
-                    
-                    let cellModel1 = communityViewModel.gridCellModels[index1]
-                    let cellModel2 = communityViewModel.gridCellModels[index2]
-                    
-                    var newArray = communityViewModel.gridCellModels
-                    
-                    cellModel1.index += 100
-                    
-                    newArray[index1] = cellModel2
-                    newArray[index2] = cellModel1
-                    
-                    communityViewModel.gridCellModels = newArray
-                    
-                }
-                */
-                
-            } label: {
-                Text("Swap...")
-                    .padding()
-            }
-
+            Image(systemName: "bolt.trianglebadge.exclamationmark.fill")
+                .renderingMode(.template)
+                .font(.system(size: CGFloat(min(bottomBarHeight - 14, 22))))
+                .foregroundStyle(DarkwingDuckTheme.naughtyYellow)
+                .opacity(communityViewModel.isNetworkErrorPresent ? 1.0 : 0.0)
             
         }
         .frame(height: CGFloat(bottomBarHeight))
-        .background(DarkwingDuckTheme.gray200)
+        .background(DarkwingDuckTheme.gray100)
     }
     
     @MainActor func getLogoBar(width: CGFloat, height: CGFloat) -> some View {
@@ -190,6 +212,6 @@ struct CommunityView: View {
                 .scaleEffect(scale)
         }
         .frame(width: width, height: height)
-        .background(DarkwingDuckTheme.gray200)
+        .background(DarkwingDuckTheme.gray100)
     }
 }

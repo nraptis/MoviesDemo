@@ -2,16 +2,10 @@
 //  ThumbGrid.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/9/24.
+//  Created by "Nick" Django Raptis on 4/9/24.
 //
 
 import SwiftUI
-
-/*
-protocol ThumbGridConforming: Identifiable {
-    var index: Int { get }
-}
-*/
 
 struct ThumbGrid<Item, ItemView>: View where Item: Identifiable, ItemView: View {
     

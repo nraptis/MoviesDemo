@@ -2,29 +2,36 @@
 //  LoadingViewTwo.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/11/24.
+//  Created by "Nick" Django Raptis on 4/11/24.
 //
 
 import SwiftUI
 
 struct LoadingView: View {
+    
     var body: some View {
+        
         VStack {
             Spacer()
             HStack {
                 Spacer()
-                ZStack {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(DarkwingDuckTheme.gray900)
-                        .scaleEffect(1.4)
+                VStack(spacing: Device.isPad ? 12.0 : 8.0) {
+                    ZStack {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(DarkwingDuckTheme.gray800)
+                            .scaleEffect(Device.isPad ? 1.5 : 1.25)
+                    }
+                    .frame(width: Device.isPad ? 74.0 : 56.0,
+                           height: Device.isPad ? 74.0 : 56.0)
+                    .background(RoundedRectangle(cornerRadius: 12.0))
+                    .foregroundStyle(DarkwingDuckTheme.gray150)
                 }
-                .frame(width: 80.0, height: 90.0)
-                .background(RoundedRectangle(cornerRadius: 16.0).foregroundColor(DarkwingDuckTheme.gray300))
+                .foregroundColor(DarkwingDuckTheme.gray800)
                 Spacer()
             }
             Spacer()
         }
-        .background(DarkwingDuckTheme.gray500)
+        .background(DarkwingDuckTheme.gray050)
     }
 }

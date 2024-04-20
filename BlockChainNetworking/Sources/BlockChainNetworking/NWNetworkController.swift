@@ -2,7 +2,7 @@
 //  File.swift
 //  
 //
-//  Created by Nick Nameless on 4/8/24.
+//  Created by "Nick" Django Raptis on 4/8/24.
 //
 
 import Foundation
@@ -19,16 +19,13 @@ public struct NWNetworkController: NWNetworkControllerImplementing {
     
     public static func fetchPopularMovies(page: Int) async throws -> NWMoviesResponse {
         
-        //let urlSession = URLSession(configuration: URLSessionConfiguration.default)
-        
         let urlString = "https://api.themoviedb.org/3/movie/popular?api_key=\(Self.apiKey)&page=\(page)"
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
         
-        let request = URLRequest(url: url)
-        //request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -38,13 +35,8 @@ public struct NWNetworkController: NWNetworkControllerImplementing {
             throw URLError(.badServerResponse)
         }
         
-        // some of the do not use the format
-        //let dateFormatter = DateFormatter()
-        //dateFormatter.dateFormat = "yyyy-MM-dd"
-        
         let jsonDecoder = JSONDecoder()
-        //jsonDecoder.dateDecodingStrategy = .formatted(dateFormatter)
-        
+
         let result = try jsonDecoder.decode(NWMoviesResponse.self, from: data)
         return result
     }
@@ -57,9 +49,8 @@ public struct NWNetworkController: NWNetworkControllerImplementing {
             throw URLError(.badURL)
         }
         
-        let request = URLRequest(url: url)
-        //request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {

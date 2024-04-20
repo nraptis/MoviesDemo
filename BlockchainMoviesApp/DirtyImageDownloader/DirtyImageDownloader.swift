@@ -2,7 +2,7 @@
 //  DirtyImageDownloader.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/9/24.
+//  Created by "Nick" Django Raptis on 4/9/24.
 //
 
 import UIKit
@@ -117,8 +117,17 @@ class DirtyImageDownloader {
         }
         
         if let task = taskDict[item.index] {
-            await task.fire()
+            
+            task.isActive = true
+            
             delegate?.dataDownloadDidStart(index)
+            
+            // For the sake of user feedback, let's
+            // sleep for a second here...
+            
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            
+            await task.fire()
         }
     }
     

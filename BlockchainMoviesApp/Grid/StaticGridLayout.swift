@@ -2,7 +2,7 @@
 //  StaticGridLayout.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/19/24.
+//  Created by "Nick" Django Raptis on 4/19/24.
 //
 
 import UIKit
@@ -18,7 +18,7 @@ protocol StaticGridLayoutDelegate: AnyObject {
 @MainActor class StaticGridLayout {
     
     nonisolated init() {
-        
+
     }
     
     weak var delegate: StaticGridLayoutDelegate?
@@ -31,7 +31,6 @@ protocol StaticGridLayoutDelegate: AnyObject {
     private let cellMaximumWidth = Device.isPad ? 170 : 100
     private var cellWidth = 100
     private var cellHeight = 100
-    
     
     private let cellSpacingH = 9
     private let cellPaddingLeft = 24
@@ -115,10 +114,8 @@ protocol StaticGridLayoutDelegate: AnyObject {
     private var _previousFirstCellIndexOnScreen = -1
     private var _previousLastCellIndexOnScreen = -1
     func refreshVisibleCells() {
-        
         _calculateLastCellIndexOnScreen()
         _calculateFirstCellIndexOnScreen()
-        
         if (_previousFirstCellIndexOnScreen != _firstCellIndexOnScreen) ||
             (_previousLastCellIndexOnScreen != _lastCellIndexOnScreen) {
             _previousFirstCellIndexOnScreen = _firstCellIndexOnScreen
@@ -275,11 +272,11 @@ extension StaticGridLayout {
         return CGFloat(getCellTop(rowIndex: rowIndex))
     }
     
-    func getCellWidth(cellIndex: Int) -> CGFloat {
+    func getCellWidth() -> CGFloat {
         return CGFloat(cellWidth)
     }
     
-    func getCellHeight(cellIndex: Int) -> CGFloat {
+    func getCellHeight() -> CGFloat {
         return CGFloat(cellHeight)
     }
 }
@@ -389,18 +386,16 @@ extension StaticGridLayout {
             return
         }
         
-        var y = -(cellHeight) + 1
+        var y = -(cellHeight)
         var numberOfRows = 1
         
         y += cellHeight
         y += cellSpacingV
-        
         while y < totalSpace {
             numberOfRows += 1
             y += cellHeight
             y += cellSpacingV
         }
-        
         _maximumNumberOfVisibleCells = _numberOfCols * numberOfRows
     }
 }

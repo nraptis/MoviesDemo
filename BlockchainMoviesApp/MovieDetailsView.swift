@@ -2,7 +2,7 @@
 //  MovieDetailsView.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/12/24.
+//  Created by "Nick" Django Raptis on 4/12/24.
 //
 
 import SwiftUI

@@ -2,7 +2,7 @@
 //  CommunityViewModel.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/9/24.
+//  Created by "Nick" Django Raptis on 4/9/24.
 //
 
 import SwiftUI
@@ -22,7 +22,7 @@ import Combine
     
     @MainActor @ObservationIgnored private let downloader = DirtyImageDownloader(numberOfSimultaneousDownloads: 2)
     
-    @MainActor @ObservationIgnored fileprivate var _imageDict = [String: UIImage]()
+    @MainActor @ObservationIgnored fileprivate var _imageDict  = [String: UIImage]()
     
     @MainActor @ObservationIgnored fileprivate var _imageFailedSet = Set<Int>()
     
@@ -111,7 +111,34 @@ import Combine
         }
     }
     
+    //
+    // This is more or less a tidying process.
+    // Sometimes, with async and await, though no
+    // data races occur, the state will not elegantly
+    // transfer.
+    //
+    // As an example, in one async function, we are doing an
+    // await before we set the cell to "downloading state"
+    // ...
+    // but on another async function, we have already set
+    // the cell to the "success" state.
+    // ...
+    // Now the cell, which was just set to the "success" state
+    // is very quickly overwritten with the downloading state.
+    // So, it becomes stuck in this downloading state.
+    //...
+    // We can either check ALL of the conditions after each
+    // and every possibly de-synchronizing await, or we can
+    // just have this heartbeat process (oldschool) which
+    // will identify anything out of sync and try to fix it.
+    //
+    private var heartbeatIndex = 0
     @MainActor func heartbeat() async {
+        
+        heartbeatIndex += 1
+        if ((heartbeatIndex % 100) == 0) {
+            print("🕑 Heart Beat #\(heartbeatIndex)")
+        }
         
         await pulse()
         
@@ -127,41 +154,74 @@ import Combine
         }
     }
     
+    @ObservationIgnored private var isOnPulse = false
     @MainActor func pulse() async {
         
-        /*
-        guard let movieGridView = movieGridView else {
+        if isRefreshing {
             return
         }
         
-        for movieGridCell in movieGridView.movieGridCells {
+        isOnPulse = true
+        
+        for gridCellModel in gridCellModels {
             
-            guard let communityCellData = getCommunityCellData(at: movieGridCell.index) else {
-                switch movieGridCell.state {
+            // Only concern ourselves with what we can see
+            guard gridCellModel.isVisible else {
+                continue
+            }
+            
+            
+            let index = gridCellModel.layoutIndex
+            
+            // The data model may have gone missing.
+            guard let communityCellData = getCommunityCellData(at: index) else {
+                // Only update the view if we need to.
+                // Verified that the same value will
+                // cause the SwiftUI view to refresh.
+                switch gridCellModel.state {
                 case .missingModel:
                     break
                 default:
-                    movieGridCell.updateStatus(.missingModel)
+                    gridCellModel.state = .missingModel
                 }
                 continue
             }
             
+            // The data model may have updated to
+            // no longer have a key. (key is the img URL)
             guard let key = communityCellData.key else {
-                switch movieGridCell.state {
+                // Only update the view if we need to.
+                // Verified that the same value will
+                // cause the SwiftUI view to refresh.
+                switch gridCellModel.state {
                 case .missingKey:
                     break
                 default:
-                    movieGridCell.updateStatus(.missingKey)
+                    gridCellModel.state = .missingKey
                 }
                 continue
             }
             
-            let index = communityCellData.index
+            var gridCellModelImage: UIImage?
+            switch gridCellModel.state {
+            case .success(let image):
+                gridCellModelImage = image
+            default:
+                break
+            }
             
-            if movieGridCell.imageView.image === nil {
+            if gridCellModelImage === nil {
+                
+                // The cell does not have an image
                 
                 if let image = _imageDict[key] {
-                    movieGridCell.updateStatus(.success(image))
+                    
+                    // Only update the view if we need to.
+                    // In this instance, we are definitely
+                    // not in "success" state, so we need
+                    // to refresh the cell. No need for check.
+                    gridCellModel.state = .success(image)
+                    
                 } else {
                     
                     // This is the common "trap" scenario. We have no image, neither does the cell...
@@ -170,30 +230,55 @@ import Combine
                     let keyAndIndexPair = KeyAndIndexPair(key: key, index: index)
                     if let image = await imageCache.singleRetrieve(keyAndIndexPair) {
                         _imageDict[key] = image
-                        movieGridCell.updateStatus(.success(image))
+                        
+                        // Only update the view if we need to.
+                        // In this case, we finished an await,
+                        // so it's possible out state transferred.
+                        
+                        switch gridCellModel.state {
+                        case .success:
+                            break
+                        default:
+                            gridCellModel.state = .success(image)
+                        }
                     } else if await downloader.isDownloading(communityCellData) {
                         
+                        // Possible data idiosyncrasies with image cache and
+                        // the downloader here. It's not the end of the world
+                        // if we download the image twice. This would be rare.
+                        
+                        // Only update the view if we need to.
+                        // Verified that the same value will
+                        // cause the SwiftUI view to refresh.
                         if await downloader.isDownloadingActively(communityCellData) {
-                            switch movieGridCell.state {
+                            switch gridCellModel.state {
                             case .downloadingActively:
                                 break
                             default:
-                                movieGridCell.updateStatus(.downloadingActively)
+                                gridCellModel.state = .downloadingActively
                             }
                         } else {
-                            switch movieGridCell.state {
+                            
+                            // Only update the view if we need to.
+                            // Verified that the same value will
+                            // cause the SwiftUI view to refresh.
+                            switch gridCellModel.state {
                             case .downloading:
                                 break
                             default:
-                                movieGridCell.updateStatus(.downloading)
+                                gridCellModel.state = .downloading
                             }
                         }
                     } else if _imageFailedSet.contains(index) {
-                        switch movieGridCell.state {
+                        
+                        // Only update the view if we need to.
+                        // Verified that the same value will
+                        // cause the SwiftUI view to refresh.
+                        switch gridCellModel.state {
                         case .error:
                             break
                         default:
-                            movieGridCell.updateStatus(.error)
+                            gridCellModel.state = .error
                         }
                     } else {
                         // The cell is in an illegal state right here...
@@ -202,27 +287,62 @@ import Combine
                         await downloader.addDownloadTask(communityCellData)
                         if await downloader.isDownloading(communityCellData) {
                             if await downloader.isDownloadingActively(communityCellData) {
-                                switch movieGridCell.state {
+                                // Only update the view if we need to.
+                                // Verified that the same value will
+                                // cause the SwiftUI view to refresh.
+                                switch gridCellModel.state {
                                 case .downloadingActively:
                                     break
                                 default:
-                                    movieGridCell.updateStatus(.downloadingActively)
+                                    gridCellModel.state = .downloadingActively
                                 }
                             } else {
-                                switch movieGridCell.state {
+                                // Only update the view if we need to.
+                                // Verified that the same value will
+                                // cause the SwiftUI view to refresh.
+                                switch gridCellModel.state {
                                 case .downloading:
                                     break
                                 default:
-                                    movieGridCell.updateStatus(.downloading)
+                                    gridCellModel.state = .downloading
                                 }
                             }
                         } else {
-                            // This probably shouldn't happen.
-                            switch movieGridCell.state {
-                            case .illegal:
-                                break
-                            default:
-                                movieGridCell.updateStatus(.illegal)
+                            
+                            // We could also have instantly downloaded
+                            // We just finished some "await," so the
+                            // system may have changed.
+                            // Therefore, we must check if the image
+                            // exists a second time.
+                            if let image = _imageDict[key] {
+                                
+                                // Only update the view if we need to.
+                                // Verified that the same value will
+                                // cause the SwiftUI view to refresh.
+                                switch gridCellModel.state {
+                                case .success:
+                                    break
+                                default:
+                                    gridCellModel.state = .success(image)
+                                }
+                            } else {
+                                // In this case, the downloader is
+                                // either blocked or malfunctioning.
+                                // So we will go to the "illegal" state.
+                                
+                                // Something could be reconciled on
+                                // the next pulse, in which case, we
+                                // will get back in sync...
+                                
+                                // Only update the view if we need to.
+                                // Verified that the same value will
+                                // cause the SwiftUI view to refresh.
+                                switch gridCellModel.state {
+                                case .illegal:
+                                    break
+                                default:
+                                    gridCellModel.state = .illegal
+                                }
                             }
                         }
                     }
@@ -233,38 +353,52 @@ import Combine
                 // The cell already has an image...
                 
                 if let image = _imageDict[key] {
-                    switch movieGridCell.state {
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    switch gridCellModel.state {
                     case .success:
                         break
                     default:
-                        movieGridCell.updateStatus(.success(image))
+                        gridCellModel.state = .success(image)
                     }
                 } else {
                     
                     // This is a strange case. The cell has an image, but we do not have an image...
-                    
                     if _imageFailedSet.contains(index) {
-                        switch movieGridCell.state {
+                        
+                        // Only update the view if we need to.
+                        // Verified that the same value will
+                        // cause the SwiftUI view to refresh.
+                        switch gridCellModel.state {
                         case .error:
                             break
                         default:
-                            movieGridCell.updateStatus(.error)
+                            gridCellModel.state = .error
                         }
                     } else if await downloader.isDownloading(communityCellData) {
                         // Perhaps we are downloading...
                         if await downloader.isDownloadingActively(communityCellData) {
-                            switch movieGridCell.state {
+                            
+                            // Only update the view if we need to.
+                            // Verified that the same value will
+                            // cause the SwiftUI view to refresh.
+                            switch gridCellModel.state {
                             case .downloadingActively:
                                 break
                             default:
-                                movieGridCell.updateStatus(.downloadingActively)
+                                gridCellModel.state = .downloadingActively
                             }
                         } else {
-                            switch movieGridCell.state {
+                            
+                            // Only update the view if we need to.
+                            // Verified that the same value will
+                            // cause the SwiftUI view to refresh.
+                            switch gridCellModel.state {
                             case .downloading:
                                 break
                             default:
-                                movieGridCell.updateStatus(.downloading)
+                                gridCellModel.state = .downloading
                             }
                         }
                     } else {
@@ -274,7 +408,16 @@ import Combine
                         let keyAndIndexPair = KeyAndIndexPair(key: key, index: index)
                         if let image = await imageCache.singleRetrieve(keyAndIndexPair) {
                             _imageDict[key] = image
-                            movieGridCell.updateStatus(.success(image))
+                            
+                            // Only update the view if we need to.
+                            // Verified that the same value will
+                            // cause the SwiftUI view to refresh.
+                            switch gridCellModel.state {
+                            case .success:
+                                break
+                            default:
+                                gridCellModel.state = .success(image)
+                            }
                         } else {
                             
                             // Fishy state. Let's try to download the image...
@@ -282,27 +425,61 @@ import Combine
                             await downloader.addDownloadTask(communityCellData)
                             if await downloader.isDownloading(communityCellData) {
                                 if await downloader.isDownloadingActively(communityCellData) {
-                                    switch movieGridCell.state {
+                                    
+                                    // Only update the view if we need to.
+                                    // Verified that the same value will
+                                    // cause the SwiftUI view to refresh.
+                                    switch gridCellModel.state {
                                     case .downloadingActively:
                                         break
                                     default:
-                                        movieGridCell.updateStatus(.downloadingActively)
+                                        gridCellModel.state = .downloadingActively
                                     }
                                 } else {
-                                    switch movieGridCell.state {
+                                    
+                                    // Only update the view if we need to.
+                                    // Verified that the same value will
+                                    // cause the SwiftUI view to refresh.
+                                    switch gridCellModel.state {
                                     case .downloading:
                                         break
                                     default:
-                                        movieGridCell.updateStatus(.downloading)
+                                        gridCellModel.state = .downloading
                                     }
                                 }
                             } else {
-                                // This probably shouldn't happen.
-                                switch movieGridCell.state {
-                                case .illegal:
-                                    break
-                                default:
-                                    movieGridCell.updateStatus(.illegal)
+                                
+                                // We could also have instantly downloaded
+                                // the image, so let's check again.
+                                if let image = _imageDict[key] {
+                                    
+                                    // Only update the view if we need to.
+                                    // Verified that the same value will
+                                    // cause the SwiftUI view to refresh.
+                                    switch gridCellModel.state {
+                                    case .success:
+                                        break
+                                    default:
+                                        gridCellModel.state = .success(image)
+                                    }
+                                } else {
+                                    // In this case, the downloader is
+                                    // either blocked or malfunctioning.
+                                    // So we will go to the "illegal" state.
+                                    
+                                    // Something could be reconciled on
+                                    // the next pulse, in which case, we
+                                    // will get back in sync...
+                                    
+                                    // Only update the view if we need to.
+                                    // Verified that the same value will
+                                    // cause the SwiftUI view to refresh.
+                                    switch gridCellModel.state {
+                                    case .illegal:
+                                        break
+                                    default:
+                                        gridCellModel.state = .illegal
+                                    }
                                 }
                             }
                         }
@@ -311,7 +488,7 @@ import Combine
             }
         }
         await downloader.startTasksIfNecessary()
-        */
+        isOnPulse = false
     }
     
     @MainActor func refresh() async {
@@ -323,11 +500,26 @@ import Combine
         
         isRefreshing = true
         
+        var fudge = 0
+        while isOnPulse {
+            if fudge == 0 {
+                print("🙅🏽‍♀️ Refreshing During Pulse... Waiting For End!!!")
+            }
+            
+            try? await Task.sleep(nanoseconds: 1_000_000)
+            
+            fudge += 1
+            if fudge >= 2048 {
+                print("🧛🏻‍♂️ Terminating refresh, we are pulse-locked.")
+                isRefreshing = false
+                return
+            }
+        }
+        
         downloader.isBlocked = true
         await downloader.cancelAll()
         
-        var fudge = 0
-        
+        fudge = 0
         while isFetching {
             if fudge == 0 {
                 print("🙅🏽‍♀️ Refreshing During Fetch... Waiting For End!!!")
@@ -344,11 +536,22 @@ import Combine
             }
         }
         
+        // For the sake of UX, let's throw everything into the
+        // "missing model" state and sleep for 1s.
+        
+        for gridCellModel in gridCellModels {
+            gridCellModel.state = .missingModel
+        }
+        
+        // This is mainly just for user feedback; the refresh feels
+        // more natural if it takes a couple seconds...
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        
         let nwMovies = await _fetchPopularMoviesWithNetwork(page: 1)
         
         // This is mainly just for user feedback; the refresh feels
         // more natural if it takes a couple seconds...
-        try? await Task.sleep(nanoseconds: 1_250_000_000)
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
         
         if nwMovies.count <= 0 {
             print("🧟‍♀️ Bad Refresh! We got no items from the network...")
@@ -618,6 +821,10 @@ import Combine
         }
         
         guard let communityCellData = getCommunityCellData(at: index) else {
+            
+            // Only update the view if we need to.
+            // Verified that the same value will
+            // cause the SwiftUI view to refresh.
             switch gridCellModel.state {
             case .missingModel:
                 break
@@ -630,6 +837,10 @@ import Combine
         if let gridCellModel = getGridCellModel(at: index) {
             
             if let image = getCellImage(at: index) {
+                
+                // Only update the view if we need to.
+                // Verified that the same value will
+                // cause the SwiftUI view to refresh.
                 switch gridCellModel.state {
                 case .success:
                     break
@@ -637,15 +848,52 @@ import Combine
                     gridCellModel.state = .success(image)
                 }
             } else if _imageFailedSet.contains(index) {
+                
+                // Only update the view if we need to.
+                // Verified that the same value will
+                // cause the SwiftUI view to refresh.
                 switch gridCellModel.state {
                 case .error:
                     break
                 default:
                     gridCellModel.state = .error
                 }
-            } 
-            
-            
+            } else if await downloader.isDownloading(communityCellData) {
+                if await downloader.isDownloadingActively(communityCellData) {
+                    
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    switch gridCellModel.state {
+                    case .downloadingActively:
+                        break
+                    default:
+                        gridCellModel.state = .downloadingActively
+                    }
+                } else {
+                    
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    switch gridCellModel.state {
+                    case .downloading:
+                        break
+                    default:
+                        gridCellModel.state = .downloading
+                    }
+                }
+            } else if communityCellData.key == nil {
+                
+                // Only update the view if we need to.
+                // Verified that the same value will
+                // cause the SwiftUI view to refresh.
+                switch gridCellModel.state {
+                case .missingKey:
+                    break
+                default:
+                    gridCellModel.state = .missingKey
+                }
+            }
         }
     }
     
@@ -658,10 +906,6 @@ import Combine
             }
         }
         return nil
-    }
-    
-    func forceRestartDownload(at index: Int) {
-        fatalError("Not Implemented")
     }
     
     @MainActor func didCellImageDownloadFail(at index: Int) -> Bool {
@@ -691,9 +935,7 @@ import Combine
         }
     }
     
-    
     @ObservationIgnored @MainActor var gridCellModelQueue = [GridCellModel]()
-
     @MainActor private func _withdrawGridCellModel() -> GridCellModel {
         if gridCellModelQueue.count > 0 {
             let result = gridCellModelQueue.removeLast()
@@ -826,7 +1068,7 @@ import Combine
     }
     
     private var _isFetchingDetails = false
-    @MainActor func handleCellClicked(at index: Int) {
+    @MainActor func handleCellClicked(at index: Int) async {
         
         if _isFetchingDetails {
             print("🪚 [STOPPED] Attempted to queue up fetch details twice.")
@@ -834,27 +1076,33 @@ import Combine
         }
         
         _isFetchingDetails = true
-        Task { @MainActor in
-            if let communityCellData = getCommunityCellData(at: index) {
-                do {
-                    let id = communityCellData.id
-                    let nwMovieDetails = try await BlockChainNetworking.NWNetworkController.fetchMovieDetails(id: id)
-                    print("🎥 Movie fetched! For \(communityCellData.title) [\(communityCellData.id)]")
-                    print(nwMovieDetails)
-                    router.pushMovieDetails(nwMovieDetails: nwMovieDetails)
-                } catch {
-                    print("🧌 Unable to fetch movie details (Network): \(error.localizedDescription)")
-                    router.rootViewModel.showError("Oops!", "Looks like we couldn't fetch the data! Check your connection!")
-                }
-                _isFetchingDetails = false
+        
+        if let communityCellData = getCommunityCellData(at: index) {
+            do {
+                let id = communityCellData.id
+                let nwMovieDetails = try await BlockChainNetworking.NWNetworkController.fetchMovieDetails(id: id)
+                print("🎥 Movie fetched! For \(communityCellData.title) [\(communityCellData.id)]")
+                print(nwMovieDetails)
+                router.pushMovieDetails(nwMovieDetails: nwMovieDetails)
+            } catch {
+                print("🧌 Unable to fetch movie details (Network): \(error.localizedDescription)")
+                router.rootViewModel.showError("Oops!", "Looks like we couldn't fetch the data! Check your connection!")
             }
+            _isFetchingDetails = false
+        }
+    }
+    
+    @MainActor func handleCellForceRetryDownload(at index: Int) async {
+        if let communityCellData = getCommunityCellData(at: index) {
+            print("🚦 Force download restart @ \(index)")
+            _imageFailedSet.remove(index)
+            await downloader.forceRestart(communityCellData)
         }
     }
     
     @MainActor func handleNumberOfCellsMayHaveChanged() {
         
         let maximumNumberOfVisibleCells = staticGridLayout.getMaximumNumberOfVisibleCells()
-        
         if gridCellModels.count < maximumNumberOfVisibleCells {
             
             let numberToAdd = (maximumNumberOfVisibleCells - gridCellModels.count)
@@ -898,6 +1146,13 @@ import Combine
         
         let firstCellIndexOnScreen = staticGridLayout.getFirstCellIndexOnScreen()
         let lastCellIndexOnScreen = staticGridLayout.getLastCellIndexOnScreen()
+        
+        let numberOfCellsRequired = (lastCellIndexOnScreen - firstCellIndexOnScreen) + 1
+        let numberOfCellsHad = gridCellModels.count
+        
+        if numberOfCellsHad < numberOfCellsRequired {
+            print("‼️ [Layout] Cells Needed = \(numberOfCellsRequired) / \(numberOfCellsHad) Cells Available")
+        }
         
         // List of cells we can write to.
         _gridCellModelsTemp.removeAll(keepingCapacity: true)
@@ -954,10 +1209,6 @@ import Combine
             
             gridCellModel.isVisible = true
             gridCellModel.layoutIndex = cellIndex
-            gridCellModel.x = staticGridLayout.getCellX(cellIndex: cellIndex)
-            gridCellModel.y = staticGridLayout.getCellY(cellIndex: cellIndex)
-            gridCellModel.width = staticGridLayout.getCellWidth(cellIndex: cellIndex)
-            gridCellModel.height = staticGridLayout.getCellHeight(cellIndex: cellIndex)
             
             guard let communityCellData = getCommunityCellData(at: cellIndex) else {
                 gridCellModel.state = .missingModel
@@ -967,24 +1218,64 @@ import Combine
             
             gridCellModel.communityCellData = communityCellData
             
-            if let image = getCellImage(at: cellIndex) {
-                gridCellModel.state = .success(image)
-            } else if _imageFailedSet.contains(cellIndex) {
-                gridCellModel.state = .error
-            } else {
-                gridCellModel.state = .illegal
+            if !isRefreshing {
+                if let image = getCellImage(at: cellIndex) {
+                    gridCellModel.state = .success(image)
+                } else if _imageFailedSet.contains(cellIndex) {
+                    gridCellModel.state = .error
+                } else {
+                    gridCellModel.state = .illegal
+                }
             }
             
             visibleCellIndex += 1
         }
         
+        // If this happens, we did something wrong. Check the
+        // starting conditions to make sure they comply with
+        // the expected starting condition.
         while visibleCellIndex < _layoutGridCellIndicesTemp.count {
-            
-            print("🚧 OVERFLOW: @ \(visibleCellIndex), cell = \(_layoutGridCellIndicesTemp[visibleCellIndex]), how is that?")
-            
+            print("🚧 [Layout] OVERFLOW: @ \(visibleCellIndex), cell = \(_layoutGridCellIndicesTemp[visibleCellIndex]), how is that?")
             visibleCellIndex += 1
         }
+        
+        let cellWidth = staticGridLayout.getCellWidth()
+        let cellHeight = staticGridLayout.getCellHeight()
+        
+        // We will always update the x, y, width, height
+        for gridCellModel in gridCellModels {
+            if gridCellModel.isVisible {
                 
+                let x = staticGridLayout.getCellX(cellIndex: gridCellModel.layoutIndex)
+                let y = staticGridLayout.getCellY(cellIndex: gridCellModel.layoutIndex)
+                
+                if x != gridCellModel.x {
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    gridCellModel.x = x
+                }
+                if y != gridCellModel.y {
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    gridCellModel.y = y
+                }
+                if cellWidth != gridCellModel.width {
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    gridCellModel.width = cellWidth
+                }
+                if cellHeight != gridCellModel.height {
+                    // Only update the view if we need to.
+                    // Verified that the same value will
+                    // cause the SwiftUI view to refresh.
+                    gridCellModel.height = cellHeight
+                }
+            }
+        }
+        
         fetchMorePagesIfNecessary()
         Task { @MainActor in
             await assignTasksToDownloader()
@@ -1002,6 +1293,10 @@ import Combine
     // If you bunch up calls to this, they will only execute 10 times per second.
     // This should be the single point of entry for fetching things out of the image cache...
     @MainActor func assignTasksToDownloader() async {
+        
+        if isRefreshing {
+            return
+        }
         
         if isAssigningTasksToDownloader {
             isAssigningTasksToDownloaderEnqueued = true
@@ -1135,11 +1430,6 @@ import Combine
             // update the UI. This was a successful cache hit!
             for (keyAndIndexPair, image) in cacheDict {
                 _imageDict[keyAndIndexPair.key] = image
-                //if let communityCellData = getCommunityCellData(at: keyAndIndexPair.index) {
-                    //movieGridView?.handleImageChanged(index: communityCellData.index)
-                    //cellNeedsUpdatePublisher.send(keyAndIndexPair.index)
-                //}
-                
                 Task {
                     await updateCell(at: keyAndIndexPair.index)
                 }
@@ -1220,29 +1510,23 @@ extension CommunityViewModel: DirtyImageDownloaderDelegate {
         if let communityCellData = getCommunityCellData(at: index) {
             if let key = communityCellData.key {
                 _imageDict[key] = image
-                
-                /*
-                Task {
-                    await self.imageCache.cacheImage(image, key)
-                }
-                */
-                
                 Task {
                     await updateCell(at: index)
+                    await imageCache.cacheImage(image, key)
                 }
             }
         }
     }
     
     @MainActor func dataDownloadDidCancel(_ index: Int) {
-        //print("🧩 We had an image cancel its download @ \(index)")
+        print("🧩 We had an image cancel its download @ \(index)")
         Task {
             await updateCell(at: index)
         }
     }
     
     @MainActor func dataDownloadDidFail(_ index: Int) {
-        //print("🎲 We had an image fail to download @ \(index)")
+        print("🎲 We had an image fail to download @ \(index)")
         _imageFailedSet.insert(index)
         Task {
             await updateCell(at: index)

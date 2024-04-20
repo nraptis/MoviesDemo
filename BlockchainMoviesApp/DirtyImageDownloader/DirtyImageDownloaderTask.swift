@@ -2,7 +2,7 @@
 //  DirtyImageDownloaderTask.swift
 //  BlockchainMoviesApp
 //
-//  Created by Nick Nameless on 4/9/24.
+//  Created by "Nick" Django Raptis on 4/9/24.
 //
 
 import UIKit
@@ -169,9 +169,11 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         }
         
         //TODO: Remove
-        //try? await Task.sleep(nanoseconds: 1_000_000_000)
+        //try? await Task.sleep(nanoseconds: 2_250_000_000)
+        
         
         //TODO: Remove
+        /*
         if Int.random(in: 0...5) == 3 {
             isActive = false
             await MainActor.run {
@@ -181,6 +183,7 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
             
             return
         }
+        */
         
         isActive = false
         await MainActor.run {

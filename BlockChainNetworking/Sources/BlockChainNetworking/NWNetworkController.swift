@@ -45,33 +45,12 @@ public struct NWNetworkController: NWNetworkControllerImplementing {
         let jsonDecoder = JSONDecoder()
         //jsonDecoder.dateDecodingStrategy = .formatted(dateFormatter)
         
-        do {
-            let result = try jsonDecoder.decode(NWMoviesResponse.self, from: data)
-            return result
-            
-        } catch let DecodingError.keyNotFound(key, context) {
-            print("Decoding error (keyNotFound): \(key) not found in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.dataCorrupted(context) {
-            print("Decoding error (dataCorrupted): data corrupted in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.typeMismatch(type, context) {
-            print("Decoding error (typeMismatch): type mismatch of \(type) in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.valueNotFound(type, context) {
-            print("Decoding error (valueNotFound): value not found for \(type) in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let error {
-            throw error
-        }
-        
-        throw NSError(domain: "fetchPopularMovies, JSON decoding error", code: 1000)
+        let result = try jsonDecoder.decode(NWMoviesResponse.self, from: data)
+        return result
     }
     
     public static func fetchMovieDetails(id: Int) async throws -> NWMovieDetails {
         
-        //let urlSession = URLSession(configuration: URLSessionConfiguration.default)
-    
         let urlString = "https://api.themoviedb.org/3/movie/\(id)?api_key=\(Self.apiKey)"
     
         guard let url = URL(string: urlString) else {
@@ -92,29 +71,7 @@ public struct NWNetworkController: NWNetworkControllerImplementing {
         
         let jsonDecoder = JSONDecoder()
         
-        do {
-            let result = try jsonDecoder.decode(NWMovieDetails.self, from: data)
-            return result
-        } catch let DecodingError.keyNotFound(key, context) {
-            print("Decoding error (keyNotFound): \(key) not found in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.dataCorrupted(context) {
-            print("Decoding error (dataCorrupted): data corrupted in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.typeMismatch(type, context) {
-            print("Decoding error (typeMismatch): type mismatch of \(type) in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let DecodingError.valueNotFound(type, context) {
-            print("Decoding error (valueNotFound): value not found for \(type) in \(context.debugDescription)")
-            print("Coding path: \(context.codingPath)")
-        } catch let error {
-            throw error
-        }
-        
-        throw NSError(domain: "fetchPopularMovies, JSON decoding error", code: 1000)
+        let result = try jsonDecoder.decode(NWMovieDetails.self, from: data)
+        return result
     }
-    
-    //https://api.themoviedb.org/3/movie/100?api_key=82951838f8541db71be0a09ae99f6519
-    
-    
 }

@@ -9,11 +9,25 @@ import Foundation
 import BlockChainNetworking
 import BlockChainDatabase
 
+// This is the model which wraps the network and
+// database models. It does not directly drive UI.
 class CommunityCellData {
+    
+    // This index is the # of the cell, for example cells[0]
+    // has an index of 0, and cells[100] has an index of 100.
     var index: Int
+    
+    // This is the ID from the database, it is not used
+    // to drive UI. It should be considered unique.
     var id: Int
+    
+    // This is the image. Two different movies may
+    // have the same poster path, they are not unique.
     var poster_path: String?
+    
+    // This is a "date" with mixed formats.
     var release_date: String?
+    
     var title: String
     var vote_average: Double
     var vote_count: Int
@@ -89,10 +103,6 @@ extension CommunityCellData: Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(index)
     }
-}
-
-extension CommunityCellData: Identifiable {
-    
 }
 
 extension CommunityCellData: DirtyImageDownloaderType {

@@ -391,8 +391,6 @@ import Combine
         // Empty out all the internal storage crap...!!!
         _imageDict.removeAll()
         _imageFailedSet.removeAll()
-        //_imageDownloadingActivelySet.removeAll()
-        //_imageDownloadingSet.removeAll()
         _imageDidCheckCacheSet.removeAll()
         
         staticGridLayout.clear()
@@ -457,7 +455,6 @@ import Combine
         isFetching = false
         staticGridLayout.registerNumberOfCells(numberOfCells)
         
-        print("[JACK] fetchPopularMovies, registered \(numberOfCells) cells")
         handleVisibleCellsMayHaveChanged()
     }
     
@@ -613,6 +610,45 @@ import Combine
         return result
     }
     
+    
+    @MainActor private func updateCell(at index: Int) async {
+        
+        guard let gridCellModel = getGridCellModel(at: index) else {
+            return
+        }
+        
+        guard let communityCellData = getCommunityCellData(at: index) else {
+            switch gridCellModel.state {
+            case .missingModel:
+                break
+            default:
+                gridCellModel.state = .missingModel
+            }
+            return
+        }
+        
+        if let gridCellModel = getGridCellModel(at: index) {
+            
+            if let image = getCellImage(at: index) {
+                switch gridCellModel.state {
+                case .success:
+                    break
+                default:
+                    gridCellModel.state = .success(image)
+                }
+            } else if _imageFailedSet.contains(index) {
+                switch gridCellModel.state {
+                case .error:
+                    break
+                default:
+                    gridCellModel.state = .error
+                }
+            } 
+            
+            
+        }
+    }
+    
     @MainActor func getCellImage(at index: Int) -> UIImage? {
         if let communityCellData = getCommunityCellData(at: index) {
             if let key = communityCellData.key {
@@ -669,6 +705,8 @@ import Combine
     }
     
     @MainActor private func _depositGridCellModel(_ cellModel: GridCellModel) {
+        cellModel.communityCellData = nil
+        cellModel.layoutIndex = -1
         gridCellModelQueue.append(cellModel)
     }
     
@@ -708,6 +746,30 @@ import Combine
         return nil
     }
     
+    @MainActor func getGridCellModel(communityCellData: CommunityCellData) -> GridCellModel? {
+        var gridCellModelIndex = 0
+        while gridCellModelIndex < gridCellModels.count {
+            let gridCellModel = gridCellModels[gridCellModelIndex]
+            if gridCellModel.communityCellData === communityCellData {
+                return gridCellModel
+            }
+            gridCellModelIndex += 1
+        }
+        return nil
+    }
+    
+    @MainActor func getGridCellModel(at index: Int) -> GridCellModel? {
+        var gridCellModelIndex = 0
+        while gridCellModelIndex < gridCellModels.count {
+            let gridCellModel = gridCellModels[gridCellModelIndex]
+            if gridCellModel.layoutIndex == index {
+                return gridCellModel
+            }
+            gridCellModelIndex += 1
+        }
+        return nil
+    }
+    
     // This is on the MainActor because the UI uses "AllVisibleCellModels"
     @MainActor func fetchMorePagesIfNecessary() {
         
@@ -722,7 +784,6 @@ import Combine
         // This needs a valid page size...
         // It sucks they chose "page" instead of (index, limit)
         //
-        
         if pageSize < 1 { return }
         
         let firstCellIndexOnScreen = staticGridLayout.getFirstCellIndexOnScreen()
@@ -776,20 +837,14 @@ import Combine
         Task { @MainActor in
             if let communityCellData = getCommunityCellData(at: index) {
                 do {
-                    
                     let id = communityCellData.id
                     let nwMovieDetails = try await BlockChainNetworking.NWNetworkController.fetchMovieDetails(id: id)
-                    
                     print("🎥 Movie fetched! For \(communityCellData.title) [\(communityCellData.id)]")
                     print(nwMovieDetails)
-                    
                     router.pushMovieDetails(nwMovieDetails: nwMovieDetails)
-                    
                 } catch {
                     print("🧌 Unable to fetch movie details (Network): \(error.localizedDescription)")
-                    
                     router.rootViewModel.showError("Oops!", "Looks like we couldn't fetch the data! Check your connection!")
-                    
                 }
                 _isFetchingDetails = false
             }
@@ -809,7 +864,7 @@ import Combine
             var index = 0
             while index < numberToAdd {
                 let gridCellModel = _withdrawGridCellModel()
-                gridCellModel.id = index
+                gridCellModel.id = gridCellModels.count
                 gridCellModels.append(gridCellModel)
                 index += 1
             }
@@ -847,24 +902,16 @@ import Combine
         // List of cells we can write to.
         _gridCellModelsTemp.removeAll(keepingCapacity: true)
         
-        var cellsWhichExisted = [Int]()
-        var cellsWhichNew = [Int]()
-        
-        
         for gridCellModel in gridCellModels {
             if let communityCellData = gridCellModel.communityCellData {
                 let doesExistInLayout = (communityCellData.index >= firstCellIndexOnScreen && communityCellData.index <= lastCellIndexOnScreen)
                 if doesExistInLayout {
                     // We CANNOT overwrite this cell.
-                    
-                    cellsWhichExisted.append(communityCellData.index)
-                    
                 } else {
                     // We can overwrite this cell.
                     _gridCellModelsTemp.append(gridCellModel)
                     gridCellModel.isVisible = false
                     gridCellModel.communityCellData = nil
-                    cellsWhichNew.append(communityCellData.index)
                 }
             } else {
                 // We can overwrite this cell.
@@ -874,22 +921,12 @@ import Combine
             }
         }
         
-        cellsWhichExisted.sort()
-        cellsWhichNew.sort()
-        
-        
-        
-        
-        
         // These will be the ones we need to freshly add...
         _layoutGridCellIndicesTemp.removeAll(keepingCapacity: true)
         
         var checkLayoutIndex = firstCellIndexOnScreen
-        
         while checkLayoutIndex <= lastCellIndexOnScreen {
-            
             var doesExistAndVisibleOnScreen = false
-            
             for gridCellModel in gridCellModels {
                 if gridCellModel.isVisible {
                     if let communityCellData = gridCellModel.communityCellData {
@@ -906,19 +943,8 @@ import Combine
             } else {
                 _layoutGridCellIndicesTemp.append(checkLayoutIndex)
             }
-            
             checkLayoutIndex += 1
         }
-        
-        
-        let lci = _layoutGridCellIndicesTemp.sorted()
-        
-        print("[JACK] layout cells = \(firstCellIndexOnScreen) to \(lastCellIndexOnScreen)")
-        print("[JACK] cellsWhichExisted = \(cellsWhichExisted)")
-        print("[JACK] LAYOUT CELLS = \(lci)")
-        
-        
-        print("[JACK] Loop Capz [\(_layoutGridCellIndicesTemp.count) and \(_gridCellModelsTemp.count)] With \(gridCellModels.count) to PICK FROM")
         
         var visibleCellIndex = 0
         while (visibleCellIndex < _layoutGridCellIndicesTemp.count) && (visibleCellIndex < _gridCellModelsTemp.count) {
@@ -927,12 +953,11 @@ import Combine
             let gridCellModel = _gridCellModelsTemp[visibleCellIndex]
             
             gridCellModel.isVisible = true
+            gridCellModel.layoutIndex = cellIndex
             gridCellModel.x = staticGridLayout.getCellX(cellIndex: cellIndex)
             gridCellModel.y = staticGridLayout.getCellY(cellIndex: cellIndex)
             gridCellModel.width = staticGridLayout.getCellWidth(cellIndex: cellIndex)
             gridCellModel.height = staticGridLayout.getCellHeight(cellIndex: cellIndex)
-            
-            print("gridCellModel cellIndex = \(cellIndex) id \(gridCellModel.id), x: \(gridCellModel.x) y: \(gridCellModel.y) w: \(gridCellModel.width) h: \(gridCellModel.height)")
             
             guard let communityCellData = getCommunityCellData(at: cellIndex) else {
                 gridCellModel.state = .missingModel
@@ -953,56 +978,13 @@ import Combine
             visibleCellIndex += 1
         }
         
-        //for c in gridCellModels {
-        //    print("cell \(cell.index)")
-        //}
-        
-        //var layoutCellModelIndex = 0
-        
-        //_gridCellModelsForVisibility
-        
-        
-        // This will be our process
-        
-        //isVisible
-        
-        
-
-        /*
-        var newGridCellModels = [GridCellModel]()
-        
-        for layoutCellModel in layoutCellModels {
+        while visibleCellIndex < _layoutGridCellIndicesTemp.count {
             
-            let index = layoutCellModel.index
+            print("🚧 OVERFLOW: @ \(visibleCellIndex), cell = \(_layoutGridCellIndicesTemp[visibleCellIndex]), how is that?")
             
-            var cellModel = GridCellModel()
-         cellModel.index = index
-         
-         cellModel.x = staticGridLayout.getX(at: index)
-         cellModel.y = staticGridLayout.getY(at: index)
-         cellModel.width = staticGridLayout.getWidth(at: index)
-         cellModel.height = staticGridLayout.getHeight(at: index)
-         
-         guard let cellData = getCommunityCellData(at: layoutCellModel.index) else {
-             
-             cellModel.state = .missingModel
-             newCellModels.append(cellModel)
-             continue
-         }
-            
-            cellModel.data = cellData
-            
-            if let image = getCellImage(at: index) {
-                cellModel.state = .success(image)
-            } else if _imageFailedSet.contains(index) {
-                cellModel.state = .error
-            } else {
-                cellModel.state = .illegal
-            }
-            newCellModels.append(cellModel)
+            visibleCellIndex += 1
         }
-        */
-        
+                
         fetchMorePagesIfNecessary()
         Task { @MainActor in
             await assignTasksToDownloader()
@@ -1158,6 +1140,10 @@ import Combine
                     //cellNeedsUpdatePublisher.send(keyAndIndexPair.index)
                 //}
                 
+                Task {
+                    await updateCell(at: keyAndIndexPair.index)
+                }
+                
                 // Let the UI update.
                 try? await Task.sleep(nanoseconds: 10_000_000)
             }
@@ -1205,29 +1191,27 @@ import Combine
 extension CommunityViewModel: StaticGridLayoutDelegate {
     
     @MainActor func layoutDidChangeVisibleCells() {
-        print("[JACK] layoutDidChangeVisibleCells FCI: \(staticGridLayout.getFirstCellIndexOnScreen()) LCI: \(staticGridLayout.getLastCellIndexOnScreen())")
         handleVisibleCellsMayHaveChanged()
     }
     
     @MainActor func layoutDidChangeWidth() {
         layoutWidth = staticGridLayout.width
-        print("[JACK] layoutDidChangeWidth ==> \(layoutWidth)")
     }
     
     @MainActor func layoutDidChangeHeight() {
         layoutHeight = staticGridLayout.height
-        print("[JACK] layoutDidChangeHeight ==> \(layoutHeight)")
     }
     
     @MainActor func layoutContainerSizeDidChange() {
-        print("[JACK] layoutContainerSizeDidChange")
         handleNumberOfCellsMayHaveChanged()
     }
 }
 
 extension CommunityViewModel: DirtyImageDownloaderDelegate {
     @MainActor func dataDownloadDidStart(_ index: Int) {
-        
+        Task {
+            await updateCell(at: index)
+        }
     }
     
     @MainActor func dataDownloadDidSucceed(_ index: Int, image: UIImage) {
@@ -1243,16 +1227,25 @@ extension CommunityViewModel: DirtyImageDownloaderDelegate {
                 }
                 */
                 
+                Task {
+                    await updateCell(at: index)
+                }
             }
         }
     }
     
     @MainActor func dataDownloadDidCancel(_ index: Int) {
         //print("🧩 We had an image cancel its download @ \(index)")
+        Task {
+            await updateCell(at: index)
+        }
     }
     
     @MainActor func dataDownloadDidFail(_ index: Int) {
         //print("🎲 We had an image fail to download @ \(index)")
         _imageFailedSet.insert(index)
+        Task {
+            await updateCell(at: index)
+        }
     }
 }

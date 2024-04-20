@@ -28,26 +28,24 @@ protocol StaticGridLayoutDelegate: AnyObject {
     private(set) var height: CGFloat = 255
     
     // cell grid layout parameters
-    let cellMaximumWidth = Device.isPad ? 170 : 100
-    var cellWidth = 100
-    var cellHeight = 100
+    private let cellMaximumWidth = Device.isPad ? 170 : 100
+    private var cellWidth = 100
+    private var cellHeight = 100
     
     
-    let cellSpacingH = 9
-    let cellPaddingLeft = 24
-    let cellPaddingRight = 24
+    private let cellSpacingH = 9
+    private let cellPaddingLeft = 24
+    private let cellPaddingRight = 24
     
-    let cellSpacingV = 9
-    let cellPaddingTop = 24
-    let cellPaddingBottom = 128
+    private let cellSpacingV = 9
+    private let cellPaddingTop = 24
+    private let cellPaddingBottom = 128
     
     private var _numberOfCells = 0
     private var _numberOfRows = 0
-    private var _numberOfCols = 0 // needs to be computed BEFORE _numberOfRows
+    private var _numberOfCols = 0
     
     private var _maximumNumberOfVisibleCells = 0
-    
-    //private var _cellWidthArray = [Int]()
     private var _cellXArray = [Int]()
     
     private var _containerFrame = CGRect.zero
@@ -57,7 +55,6 @@ protocol StaticGridLayoutDelegate: AnyObject {
         _numberOfCells = 0
         _numberOfRows = 0
         _numberOfCols = 0 // needs to be computed BEFORE _numberOfRows
-        
         _cellXArray = [Int]()
     }
     
@@ -93,11 +90,8 @@ protocol StaticGridLayoutDelegate: AnyObject {
         refreshVisibleCells()
     }
     
-    //use for clipping (show and hide cells, notify which cells are visible...)
-    private static let onScreenPadding = 0
-    
     func getTopRowIndex() -> Int {
-        let containerTop = getContainerTop() - Self.onScreenPadding
+        let containerTop = getContainerTop()
         var row = containerTop - cellPaddingTop
         row = (row / (cellHeight + cellSpacingV))
         if row >= _numberOfRows { row = _numberOfRows - 1 }
@@ -106,8 +100,8 @@ protocol StaticGridLayoutDelegate: AnyObject {
     }
     
     func getBottomRowIndex() -> Int {
-        let containerBottom = getContainerBottom() + Self.onScreenPadding
-        var row = containerBottom - cellPaddingTop// + cellHeight
+        let containerBottom = getContainerBottom()
+        var row = containerBottom - cellPaddingTop
         row = (row / (cellHeight + cellSpacingV))
         if row >= _numberOfRows { row = _numberOfRows - 1 }
         if row < 0 { row = 0 }
@@ -200,12 +194,19 @@ protocol StaticGridLayoutDelegate: AnyObject {
     private var _lastCellIndexOnScreen = -1
     func getLastCellIndexOnScreen() -> Int {
         _lastCellIndexOnScreen
-        
     }
     
     func _calculateLastCellIndexOnScreen() {
         let bottomRowIndex = getBottomRowIndex()
         _lastCellIndexOnScreen = getLastCellIndex(rowIndex: bottomRowIndex)
+    }
+    
+    func getNumberOfCells() -> Int {
+        _numberOfCells
+    }
+    
+    func getMaximumNumberOfVisibleCells() -> Int {
+        return _maximumNumberOfVisibleCells
     }
 }
 
@@ -286,15 +287,7 @@ extension StaticGridLayout {
 // grid layout helpers (internal)
 extension StaticGridLayout {
     
-    func getNumberOfCells() -> Int {
-        _numberOfCells
-    }
-    
-    func getMaximumNumberOfVisibleCells() -> Int {
-        return _maximumNumberOfVisibleCells
-    }
-    
-    func calculateNumberOfRows() {
+    private func calculateNumberOfRows() {
         if _numberOfCols > 0 {
             _numberOfRows = _numberOfCells / _numberOfCols
             if (_numberOfCells % _numberOfCols) != 0 {
@@ -305,7 +298,7 @@ extension StaticGridLayout {
         }
     }
     
-    func calculateNumberOfCols() {
+    private func calculateNumberOfCols() {
         
         //if _numberOfCells <= 0 { return 0 }
         
@@ -333,7 +326,7 @@ extension StaticGridLayout {
         }
     }
     
-    func calculateCellWidth() {
+    private func calculateCellWidth() {
         if _numberOfCols <= 0 {
             cellWidth = 16
             return
@@ -355,10 +348,9 @@ extension StaticGridLayout {
         }
     }
     
-    func calculateCellXArray() {
+    private func calculateCellXArray() {
         
         _cellXArray.removeAll(keepingCapacity: true)
-        
         
         // We are doing all same width, so we may need to make a slight adjustment.
         var spaceConsumed = cellPaddingLeft + cellPaddingRight
@@ -372,17 +364,13 @@ extension StaticGridLayout {
         let extraOffset = (realWidth - spaceConsumed) / 2
         
         var cellX = cellPaddingLeft + extraOffset
-        for index in 0..<_numberOfCols {
+        for _ in 0..<_numberOfCols {
             _cellXArray.append(cellX)
             cellX += cellWidth + cellSpacingH
         }
     }
-}
-
-// grid layout helpers (internal)
-extension StaticGridLayout {
     
-    func calculateMaximumNumberOfVisibleCells() {
+    private func calculateMaximumNumberOfVisibleCells() {
         
         let totalSpace = Int(_containerFrame.height + 0.5)
         
@@ -415,7 +403,4 @@ extension StaticGridLayout {
         
         _maximumNumberOfVisibleCells = _numberOfCols * numberOfRows
     }
-    
 }
-
-

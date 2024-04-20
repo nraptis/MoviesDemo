@@ -47,4 +47,9 @@ import Foundation
     var height = CGFloat(32.0)
     
     var isVisible = false
+    
+    // Are we ready for the heartbeat process?
+    // We just want to make sure it's not being updated
+    // by two branches at once...
+    @ObservationIgnored var isReadyForHeartbeatTick = 20
 }

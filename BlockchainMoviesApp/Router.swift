@@ -25,5 +25,4 @@ import BlockChainNetworking
         let movieDetailsViewModel = MovieDetailsViewModel(nwMovieDetails: nwMovieDetails)
         navigationPath.append(movieDetailsViewModel)
     }
-    
 }

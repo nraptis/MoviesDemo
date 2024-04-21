@@ -8,10 +8,10 @@
 import SwiftUI
 import BlockChainNetworking
 import BlockChainDatabase
-import Combine
 
 @Observable class CommunityViewModel {
     
+    private static let DEBUG_STATE_CHANGES = false
     
     typealias NWMovie = BlockChainNetworking.NWMovie
     typealias DBMovie = BlockChainDatabase.DBMovie
@@ -28,8 +28,8 @@ import Combine
     
     @MainActor @ObservationIgnored fileprivate var _imageDidCheckCacheSet = Set<Int>()
     
-    @MainActor @ObservationIgnored private var _addDownloadItems = [CommunityCellData]()
-    @MainActor @ObservationIgnored private var _checkCacheDownloadItems = [CommunityCellData]()
+    //@MainActor @ObservationIgnored private var _addDownloadItems = [CommunityCellData]()
+    //@MainActor @ObservationIgnored private var _checkCacheDownloadItems = [CommunityCellData]()
     @MainActor @ObservationIgnored private var _checkCacheKeys = [KeyAndIndexPair]()
     
     @MainActor @ObservationIgnored private var _cacheContents = [KeyIndexImage]()
@@ -134,8 +134,9 @@ import Combine
     // just have this heartbeat process (oldschool) which
     // will identify anything out of sync and try to fix it.
     //
-    // This rarely does anything, but it is a good insurance
-    // policy against, not data races, but state races.
+    // It should be noted that things can fall out of sync during
+    // the heartbeat process. However, they will be fixed on the
+    // very next heart beat. In practice, this is rare to occur.
     //
     
     @MainActor func heartbeat() async {
@@ -170,8 +171,9 @@ import Combine
     @ObservationIgnored private var _heartbeatDownloadItems = [CommunityCellData]()
     @ObservationIgnored private var _heartbeatBatchStateList = [GridCellModelAndState]()
     
-    
     @ObservationIgnored private var isOnPulse = false
+    @ObservationIgnored private var pulseNumber = 0
+    
     @MainActor func pulse() async {
         
         if isRefreshing {
@@ -179,6 +181,11 @@ import Combine
         }
         
         isOnPulse = true
+        
+        pulseNumber += 1
+        if pulseNumber >= 100 {
+            pulseNumber = 1
+        }
         
         //
         // We process the ticks one time, and just build a
@@ -200,9 +207,6 @@ import Combine
             //
             if gridCellModel.isReadyForHeartbeatTick > 0 {
                 gridCellModel.isReadyForHeartbeatTick -= 1
-                if gridCellModel.isReadyForHeartbeatTick == 0 {
-                    print("🔉 Cell @ [\(gridCellModel.layoutIndex)] ready for heartbeat process.")
-                }
                 continue
             }
             
@@ -230,7 +234,6 @@ import Combine
                 if let communityCellData = getCommunityCellData(at: index) {
                     if let key = communityCellData.key {
                         if let image = _imageDict[key] {
-                            print("📣 Heartbeat process determined [\(gridCellModel.layoutIndex)] READY TO INJECT!!!")
                             _heartbeatGridCellModelImages.append(GridCellModelAndImage(gridCellModel: gridCellModel, image: image))
                         }
                     }
@@ -253,7 +256,9 @@ import Combine
                 case .success:
                     break
                 default:
-                    print("♿️ Heartbeat Fast Box Process Updated [\(gridCellModel.layoutIndex)] to SUCCESS [\(gridCellModelImage.image.size.width) x \(gridCellModelImage.image.size.height)]")
+                    if Self.DEBUG_STATE_CHANGES {
+                        print("♿️ {\(pulseNumber)} Heartbeat Fast Box Process Updated [\(gridCellModel.layoutIndex)] to SUCCESS [\(gridCellModelImage.image.size.width) x \(gridCellModelImage.image.size.height)]")
+                    }
                     gridCellModel.state = .success(gridCellModelImage.image)
                 }
                 
@@ -261,7 +266,7 @@ import Combine
                 loops -= 1
             }
             // Let the UI update.
-            try? await Task.sleep(nanoseconds: 20_000_000)
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
         
         
@@ -298,7 +303,6 @@ import Combine
                 if await downloader.isDownloading(communityCellData) {
                     continue
                 }
-                print("📣 Heartbeat process determined [\(gridCellModel.layoutIndex)] needs CACHE CHECK!!!")
                 _heartbeatGridCellModelsTemp.append(gridCellModel)
             }
         }
@@ -343,7 +347,9 @@ import Combine
                     case .success:
                         break
                     default:
-                        print("🚸 Heartbeat Cache Process Updated [\(gridCellModel.layoutIndex)] to SUCCESS [\(cacheContent.image.size.width) x \(cacheContent.image.size.height)]")
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("🚸 {\(pulseNumber)} Heartbeat Cache Process Updated [\(gridCellModel.layoutIndex)] to SUCCESS [\(cacheContent.image.size.width) x \(cacheContent.image.size.height)]")
+                        }
                         gridCellModel.state = .success(cacheContent.image)
                     }
                 }
@@ -352,60 +358,7 @@ import Combine
                 loops -= 1
             }
             // Let the UI update.
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        
-        // Now let's check all the failures. Then we add them
-        // piecewise 3 or 4 at a time, so not too much screen
-        // thrashing happens, nice and smooth like butter butters...
-        _heartbeatGridCellModelsTemp.removeAll(keepingCapacity: true)
-        for gridCellModel in _heartbeatGridCellModelsToProcess {
-            
-            switch gridCellModel.state {
-            case .success:
-                //If we have the image, no need to download
-                break
-            default:
-                let index = gridCellModel.layoutIndex
-                guard getCommunityCellData(at: index) != nil else {
-                    continue
-                }
-                if _imageFailedSet.contains(index) {
-                    switch gridCellModel.state {
-                    case .error:
-                        break
-                    default:
-                        _heartbeatGridCellModelsTemp.append(gridCellModel)
-                        print("📣 Heartbeat process determined [\(gridCellModel.layoutIndex)] needs FAILUR CHECK!!!")
-                    }
-                }
-            }
-        }
-        
-        var failCheckIndex = 0
-        while failCheckIndex < _heartbeatGridCellModelsTemp.count {
-            var loops = 4
-            while failCheckIndex < _heartbeatGridCellModelsTemp.count && loops > 0 {
-                let gridCellModel = _heartbeatGridCellModelsTemp[failCheckIndex]
-                
-                //
-                // Since we cross asynchronous boundary, we can
-                // have the state changes. So, we check again.
-                //
-                switch gridCellModel.state {
-                case .error:
-                    break
-                default:
-                    if _imageFailedSet.contains(gridCellModel.layoutIndex) {
-                        gridCellModel.state = .error
-                        print("🚸📢 Heartbeat Cache Process Updated [\(gridCellModel.layoutIndex)] to error")
-                    }
-                }
-                failCheckIndex += 1
-                loops -= 1
-            }
-            // Let the UI update.
-            try? await Task.sleep(nanoseconds: 20_000_000)
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
         
         // Not let's do the same with downloads. We don't need piecewise
@@ -436,19 +389,23 @@ import Combine
                     // function in a batch.
                     continue
                 }
-                print("📣 Heartbeat process determined [\(gridCellModel.layoutIndex)] needs DOWNLOAD CHECK!!!")
                 _heartbeatDownloadItems.append(communityCellData)
             }
         }
         
-        for item in _heartbeatDownloadItems {
-            print("🚸📢 Heartbeat Started Download... [\(item.index)]")
+        if Self.DEBUG_STATE_CHANGES {
+            for item in _heartbeatDownloadItems {
+                print("🚸📢 {\(pulseNumber)} Heartbeat Started Download... [\(item.index)]")
+            }
         }
         
         if _heartbeatDownloadItems.count > 0 {
-            await _loadUpDownloaderAndComputePrioritiesFromHeartbeat()
-            await downloader.startTasksIfNecessary()
+            await downloader.addDownloadTaskBatch(_heartbeatDownloadItems)
+        } else {
+            
         }
+        await _computeDownloadPriorities()
+        await downloader.startTasksIfNecessary()
         
         
         // The final thing we need to do is, again as a
@@ -474,7 +431,6 @@ import Combine
                 default:
                     let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .missingModel)
                     _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to missingModel")
                 }
                 continue
             }
@@ -488,14 +444,25 @@ import Combine
                 default:
                     let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .missingKey)
                     _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to missingKey")
                 }
                 continue
             }
             
-            
             // We've already done things like assign
             // the images we had, and check the cache.
+            
+            // Maybe we are in a fail state and don't know it.
+            switch gridCellModel.state {
+            case .error:
+                break
+            default:
+                if _imageDict[key] === nil {
+                    if _imageFailedSet.contains(index) {
+                        let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .error)
+                        _heartbeatBatchStateList.append(update)
+                    }
+                }
+            }
             
             // It's possible that we've lost our image.
             switch gridCellModel.state {
@@ -505,9 +472,11 @@ import Combine
                     // We will call this "illegal"
                     let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .illegal)
                     _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to illegal (lost image)")
-                    continue
+                } else {
+                    // In this case, we downloaded it already.
+                    
                 }
+                continue
             default:
                 break
             }
@@ -520,9 +489,8 @@ import Combine
                     // We will call this "illegal"
                     let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .illegal)
                     _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to illegal (lost fail state)")
-                    continue
                 }
+                continue
             default:
                 break
             }
@@ -530,23 +498,29 @@ import Combine
             // It's possible that we started a download.
             if await downloader.isDownloading(communityCellData) {
                 if await downloader.isDownloadingActively(communityCellData) {
-                    let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .downloadingActively)
-                    _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to do downloadingActively")
-                    continue
+                    switch gridCellModel.state {
+                    case .downloadingActively:
+                        break
+                    default:
+                        let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .downloadingActively)
+                        _heartbeatBatchStateList.append(update)
+                    }
                 } else {
-                    let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .downloading)
-                    _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to do downloading")
-                    continue
+                    switch gridCellModel.state {
+                    case .downloading:
+                        break
+                    default:
+                        let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .downloading)
+                        _heartbeatBatchStateList.append(update)
+                    }
                 }
+                continue
             } else {
                 // It's possible that we lost our downloading state...
                 switch gridCellModel.state {
                 case .downloading, .downloadingActively:
                     let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .illegal)
                     _heartbeatBatchStateList.append(update)
-                    print("🔢 Heartbeat Determined... [\(index)] transition to illegal (lost downloading)")
                     continue
                 default:
                     break
@@ -558,7 +532,6 @@ import Combine
             case .missingKey:
                 let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .illegal)
                 _heartbeatBatchStateList.append(update)
-                print("🔢 Heartbeat Determined... [\(index)] transition to illegal (no longer missing key)")
                 continue
             default:
                 break
@@ -569,7 +542,6 @@ import Combine
             case .missingModel:
                 let update = GridCellModelAndState(gridCellModel: gridCellModel, state: .illegal)
                 _heartbeatBatchStateList.append(update)
-                print("🔢 Heartbeat Determined... [\(index)] transition to illegal (no longer missing model)")
                 continue
             default:
                 break
@@ -614,6 +586,7 @@ import Combine
                 //missingKey
                 //downloadingActively
                 //downloadingActively
+                //error
                 
                 //illegal (this means several things, may not be recoverable)
                 
@@ -623,7 +596,9 @@ import Combine
                     case .missingModel:
                         break
                     default:
-                        print("💠 Heartbeat Reconcile Set [\(index)] to missingModel! [A]")
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to missingModel! [A]")
+                        }
                         gridCellModel.state = .missingModel
                     }
                     
@@ -632,7 +607,9 @@ import Combine
                     case .missingKey:
                         break
                     default:
-                        print("💠 Heartbeat Reconcile Set [\(index)] to missingKey! [A]")
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to missingKey! [A]")
+                        }
                         gridCellModel.state = .missingKey
                     }
                 case .downloading:
@@ -640,7 +617,9 @@ import Combine
                     case .downloading:
                         break
                     default:
-                        print("💠 Heartbeat Reconcile Set [\(index)] to downloading!")
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to downloading!")
+                        }
                         gridCellModel.state = .downloading
                     }
                 case .downloadingActively:
@@ -648,12 +627,28 @@ import Combine
                     case .downloadingActively:
                         break
                     default:
-                        print("💠 Heartbeat Reconcile Set [\(index)] to downloadingActively!")
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to downloadingActively!")
+                        }
                         gridCellModel.state = .downloadingActively
                     }
+                case .error:
+                    switch gridCellModel.state {
+                    case .error:
+                        break
+                    default:
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to error!")
+                        }
+                        gridCellModel.state = .error
+                    }
                 default:
-                    print("⁉️ Heartbeat Reconcile Attempting To Fix \(index)...")
                     
+                    //
+                    // Some of these seem redundant, but we did
+                    // cross an asynchronous boundary when we
+                    // were talking to the image downloader...
+                    //
                     if let communityCellData = getCommunityCellData(at: index) {
                         if let key = communityCellData.key {
                             if let image = _imageDict[key] {
@@ -661,8 +656,11 @@ import Combine
                                 case .success:
                                     break
                                 default:
+                                    if Self.DEBUG_STATE_CHANGES {
+                                        print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to success image [\(image.size.width) x \(image.size.width)]")
+                                    }
                                     gridCellModel.state = .success(image)
-                                    print("💠 Heartbeat Reconcile Set [\(index)] to success image [\(image.size.width) x \(image.size.width)]")
+                                    
                                 }
                             } else {
                                 
@@ -671,8 +669,11 @@ import Combine
                                     case .error:
                                         break
                                     default:
+                                        if Self.DEBUG_STATE_CHANGES {
+                                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to error")
+                                        }
                                         gridCellModel.state = .error
-                                        print("💠 Heartbeat Reconcile Set [\(index)] to error")
+                                        
                                     }
                                 } else {
                                     // There's no image.
@@ -688,8 +689,11 @@ import Combine
                                     case .illegal:
                                         break
                                     default:
+                                        if Self.DEBUG_STATE_CHANGES {
+                                            print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to illegal")
+                                        }
                                         gridCellModel.state = .illegal
-                                        print("💠 Heartbeat Reconcile Set [\(index)] to illegal")
+                                        
                                     }
                                 }
                             }
@@ -698,7 +702,9 @@ import Combine
                             case .missingKey:
                                 break
                             default:
-                                print("💠 Heartbeat Reconcile Set [\(index)] to missingKey! [B]")
+                                if Self.DEBUG_STATE_CHANGES {
+                                    print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to missingKey! [B]")
+                                }
                                 gridCellModel.state = .missingKey
                             }
                         }
@@ -707,7 +713,9 @@ import Combine
                         case .missingModel:
                             break
                         default:
-                            print("💠 Heartbeat Reconcile Set [\(index)] to missingModel! [B]")
+                            if Self.DEBUG_STATE_CHANGES {
+                                print("💠 {\(pulseNumber)} Heartbeat Reconcile Set [\(index)] to missingModel! [B]")
+                            }
                             gridCellModel.state = .missingModel
                         }
                     }
@@ -717,11 +725,9 @@ import Combine
                 loops -= 1
             }
             // Let the UI update.
-            try? await Task.sleep(nanoseconds: 20_000_000)
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
         
-        // Start the downloads
-        await downloader.startTasksIfNecessary()
         
         isOnPulse = false
     }
@@ -799,7 +805,9 @@ import Combine
         // "missing model" state and sleep for 1s.
         
         for gridCellModel in gridCellModels {
-            print("🔕 REFRESH process updated [\(gridCellModel.layoutIndex)] to an .missingModel [EXPECTED]")
+            if Self.DEBUG_STATE_CHANGES {
+                print("🔕 REFRESH process updated [\(gridCellModel.layoutIndex)] to an .missingModel [EXPECTED]")
+            }
             gridCellModel.state = .missingModel
         }
         
@@ -1131,12 +1139,15 @@ import Combine
         guard let communityCellData = getCommunityCellData(at: index) else {
             return false
         }
-        
         return await downloader.isDownloadingActively(communityCellData)
     }
     
-    func registerScrollContent(_ scrollContentGeometry: GeometryProxy) {
-        
+    @MainActor func registerScrollContent(_ scrollContentGeometry: GeometryProxy) {
+        /*
+        Task { @MainActor in
+            await _computeDownloadPriorities()
+        }
+        */
     }
     
     @ObservationIgnored @MainActor var gridCellModelQueue = [GridCellModel]()
@@ -1154,7 +1165,7 @@ import Combine
         //cellModel.communityCellData = nil
         cellModel.layoutIndex = -1
         cellModel.isVisible = false
-        cellModel.isReadyForHeartbeatTick = 20
+        cellModel.isReadyForHeartbeatTick = 3
         gridCellModelQueue.append(cellModel)
     }
     
@@ -1218,7 +1229,6 @@ import Combine
         return nil
     }
     
-    // This is on the MainActor because the UI uses "AllVisibleCellModels"
     @MainActor func fetchMorePagesIfNecessary() {
         
         if isFetching { return }
@@ -1347,8 +1357,7 @@ import Combine
     
     @ObservationIgnored private var isOnVisibleCellsMayHaveChanged = false
     
-    
-    @MainActor private func _injectWithData(gridCellModel: GridCellModel, 
+    @MainActor private func _injectWithData(gridCellModel: GridCellModel,
                                             communityCellData: CommunityCellData,
                                             index: Int) {
         
@@ -1370,8 +1379,10 @@ import Combine
                 case .success:
                     break
                 default:
+                    if Self.DEBUG_STATE_CHANGES {
+                        print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to an image [\(image.size.width) x \(image.size.width)] WJ")
+                    }
                     gridCellModel.state = .success(image)
-                    print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to an image [\(image.size.width) x \(image.size.width)] WJ")
                 }
             } else {
                 
@@ -1383,9 +1394,21 @@ import Combine
                     case .error:
                         break
                     default:
+                        if Self.DEBUG_STATE_CHANGES {
+                            print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to .error WK")
+                        }
                         gridCellModel.state = .error
-                        print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to .error WK")
                     }
+                } else {
+                    /*
+                    switch gridCellModel.state {
+                    case .downloading:
+                        break
+                    default:
+                        gridCellModel.state = .downloading
+                        print("📚 🚧 Injection Process [Fake] Updated [\(communityCellData.index)] to .downloading")
+                    }
+                    */
                 }
             }
         } else {
@@ -1397,22 +1420,12 @@ import Combine
             case .missingKey:
                 break
             default:
+                if Self.DEBUG_STATE_CHANGES {
+                    print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to .missingKey JM")
+                }
                 gridCellModel.state = .missingKey
-                print("📚 🚧 Injection Process Updated [\(communityCellData.index)] to .missingKey JM")
             }
         }
-    }
-    
-    @MainActor private func _injectWithDataWhileRefreshing(gridCellModel: GridCellModel,
-                                                           communityCellData: CommunityCellData,
-                                                           index: Int) {
-        
-        // Only update the view if we need to.
-        // Verified that the same value will
-        // cause the SwiftUI view to refresh.
-        //if gridCellModel.communityCellData !== communityCellData {
-        //    gridCellModel.communityCellData = communityCellData
-        //}
     }
     
     func _injectWithoutData(gridCellModel: GridCellModel, index: Int) {
@@ -1423,8 +1436,10 @@ import Combine
         case .missingModel:
             break
         default:
+            if Self.DEBUG_STATE_CHANGES {
+                print("📚 🚧 Injection Process II Updated [\(index)] to an MISSING MODEL KK")
+            }
             gridCellModel.state = .missingModel
-            print("📚 🚧 Injection Process II Updated [\(index)] to an MISSING MODEL KK")
         }
         
         // Only update the view if we need to.
@@ -1436,6 +1451,7 @@ import Combine
     }
     
     @MainActor func handleVisibleCellsMayHaveChanged() {
+    
         
         isOnVisibleCellsMayHaveChanged = true
         
@@ -1477,17 +1493,33 @@ import Combine
                 }
                 
             } else {
-                
-                if gridCellModel.layoutIndex != -1 {
-                    print("🎏 Overwrite Process Updated [\(gridCellModel.layoutIndex)] to ILLEGAL")
-                }
                 // We can overwrite this cell.
                 _gridCellModelsTemp.append(gridCellModel)
-                gridCellModel.isVisible = false
-                gridCellModel.layoutIndex = -1
-                //gridCellModel.communityCellData = nil
-                gridCellModel.state = .illegal
-                gridCellModel.isReadyForHeartbeatTick = 20
+                
+                
+                if gridCellModel.isVisible {
+                    // avoid triggering refresh unless we have to.
+                    gridCellModel.isVisible = false
+                }
+                
+                if gridCellModel.layoutIndex != -1 {
+                    // avoid triggering refresh unless we have to.
+                    gridCellModel.layoutIndex = -1
+                }
+                
+                switch gridCellModel.state {
+                    // avoid triggering refresh unless we have to.
+                case .illegal:
+                    break
+                default:
+                    if Self.DEBUG_STATE_CHANGES {
+                        print("📚 🚧 Reassignment Process [\(index)] to .illegal (Not Used)")
+                    }
+                    gridCellModel.state = .illegal
+                }
+                
+                // we cannot trigger a refresh, this is @ObsIgnored
+                gridCellModel.isReadyForHeartbeatTick = 3
             }
         }
         
@@ -1550,8 +1582,8 @@ import Combine
                 
                 let index = gridCellModel.layoutIndex
                 
-                let x = staticGridLayout.getCellX(cellIndex: gridCellModel.layoutIndex)
-                let y = staticGridLayout.getCellY(cellIndex: gridCellModel.layoutIndex)
+                let x = staticGridLayout.getCellX(cellIndex: index)
+                let y = staticGridLayout.getCellY(cellIndex: index)
                 
                 if x != gridCellModel.x {
                     // Only update the view if we need to.
@@ -1579,47 +1611,37 @@ import Combine
                 }
             }
         }
-
-        // TODO: Re-Enable
-        for gridCellModel in _newGridCellModelsTemp {
-            let index = gridCellModel.layoutIndex
-            if let communityCellData = getCommunityCellData(at: index) {
-                if !isRefreshing {
-                    _injectWithData(gridCellModel: gridCellModel,
-                                    communityCellData: communityCellData,
-                                    index: index)
-                } else {
-                    _injectWithDataWhileRefreshing(gridCellModel: gridCellModel,
-                                                   communityCellData: communityCellData,
-                                                   index: index)
-                }
-            } else {
-                _injectWithoutData(gridCellModel: gridCellModel, index: index)
-            }
-        }
         
-        /*
-        //TODO: Remove this one, this is debug
-        for gridCellModel in _newGridCellModelsTemp {
-            let index = gridCellModel.layoutIndex
-            if let communityCellData = getCommunityCellData(at: index) {
-                _injectWithDataWhileRefreshing(gridCellModel: gridCellModel,
-                                               communityCellData: communityCellData,
-                                               index: index)
-            } else {
-                _injectWithoutData(gridCellModel: gridCellModel, index: index)
+        // TODO: Re-Enable
+        Task { @MainActor in
+            var gridCellModelIndex = 0
+            while gridCellModelIndex < gridCellModels.count {
+                var loops = 4
+                while gridCellModelIndex < gridCellModels.count && loops >= 0 {
+                    let gridCellModel = gridCellModels[gridCellModelIndex]
+                    if gridCellModel.isVisible {
+                        let index = gridCellModel.layoutIndex
+                        if let communityCellData = getCommunityCellData(at: index) {
+                            if !isRefreshing {
+                                _injectWithData(gridCellModel: gridCellModel,
+                                                communityCellData: communityCellData,
+                                                index: index)
+                            }
+                        } else {
+                            _injectWithoutData(gridCellModel: gridCellModel, index: index)
+                        }
+                        loops -= 1
+                    }
+                    gridCellModelIndex += 1
+                }
+                
+                // Let the UI update.
+                try? await Task.sleep(nanoseconds: 10_000_000)
             }
         }
-        */
         
         isOnVisibleCellsMayHaveChanged = false
-        
-        Task {
-            //await handleVisibleCellsMayHaveChanged_PostProcess(newGridCellModels: _newGridCellModelsTemp)
-            //await assignTasksToDownloader()
-            fetchMorePagesIfNecessary()
-        }
-        
+        fetchMorePagesIfNecessary()
     }
     
     // Distance from the left of the container / screen.
@@ -1824,14 +1846,11 @@ import Combine
     }
     */
     
-    @MainActor private func _loadUpDownloaderAndComputePrioritiesFromHeartbeat() async {
-        let list = _heartbeatDownloadItems
-        await _loadUpDownloaderAndComputePriorities(list: _heartbeatDownloadItems)
-    }
-    
-    @MainActor private func _loadUpDownloaderAndComputePriorities(list: [any DirtyImageDownloaderType]) async {
+    //@ObservationIgnored @MainActor private var _isComputingDownloadPriorities = false
+    //@ObservationIgnored @MainActor private var _isComputingDownloadPrioritiesEnqueued = false
+    @MainActor private func _computeDownloadPriorities() async {
         
-        await downloader.addDownloadTaskBatch(list)
+        //_isComputingDownloadPrioritiesEnqueued
         
         let containerTopY = staticGridLayout.getContainerTop()
         let containerBottomY = staticGridLayout.getContainerBottom()
@@ -1853,9 +1872,13 @@ import Combine
             return
         }
         
+        //if _isComputingDownloadPriorities {
+        //    _isComputingDownloadPrioritiesEnqueued = true
+        //    return
+        //}
+        
         let containerRangeY = containerTopY...containerBottomY
-        
-        
+        //_isComputingDownloadPriorities = true
         
         let taskList = await downloader.taskList
         
@@ -1888,8 +1911,19 @@ import Combine
             }
         }
         await downloader.setPriorityBatch(_priorityCommunityCellDatas, _priorityList)
+        
+        /*
+        if _isComputingDownloadPrioritiesEnqueued {
+            Task { @MainActor in
+                _isComputingDownloadPriorities = false
+                _isComputingDownloadPrioritiesEnqueued = false
+                await _computeDownloadPriorities()
+            }
+        } else {
+            _isComputingDownloadPriorities = false
+        }
+        */
     }
-    
 }
 
 extension CommunityViewModel: StaticGridLayoutDelegate {
@@ -1913,11 +1947,10 @@ extension CommunityViewModel: StaticGridLayoutDelegate {
 
 extension CommunityViewModel: DirtyImageDownloaderDelegate {
     @MainActor func dataDownloadDidStart(_ index: Int) {
-        print("✅ Image download Start @ [\(index)]")
+        
     }
     
     @MainActor func dataDownloadDidSucceed(_ index: Int, image: UIImage) {
-        print("✅ Image download success @ [\(index)]")
         _imageFailedSet.remove(index)
         if let communityCellData = getCommunityCellData(at: index) {
             if let key = communityCellData.key {

@@ -16,7 +16,7 @@ struct CommunityCell: View {
         static let buttonRadius = CGFloat(8.0)
         
         
-        static let lineThickness = CGFloat(2.0)
+        static let lineThickness = CGFloat(4.0)
         
         static let bottomAreaHeight = CGFloat(44.0)
     }
@@ -40,7 +40,10 @@ struct CommunityCell: View {
             getMainContent(width: width, height: height)
         }
         .frame(width: gridCellModel.width, height: gridCellModel.height)
-        .background(DarkwingDuckTheme.gray900)
+        //.background(DarkwingDuckTheme.gray900)
+        .background(Color(red: Double.random(in: 0.25...0.75),
+                          green: Double.random(in: 0.25...0.75),
+                          blue: Double.random(in: 0.25...0.75)))
         .clipShape(RoundedRectangle(cornerRadius: CommunityCellConstants.outerRadius))
         .offset(x: x,
                 y: y)
@@ -101,10 +104,14 @@ struct CommunityCell: View {
             getSuccessContent(width: innerWidth, height: innerHeight, image: image)
                 .opacity(isSuccess ? 1.0 : 0.0)
             
+            /*
+            
             Text("\(gridCellModel.layoutIndex)")
                 .font(.system(size: 32).bold())
                 .foregroundStyle(Color.red)
                 .background(Color.black.opacity(0.5))
+            
+            */
         }
     }
     

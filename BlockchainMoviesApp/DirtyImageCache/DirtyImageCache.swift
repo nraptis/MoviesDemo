@@ -34,7 +34,7 @@ class DirtyImageCache {
     
     private let name: String
     
-    private let DISABLED = true
+    private let DISABLED = false
     
     @DirtyImageCacheActor
     private var fileRecycler = DirtyImageCacheFileRecycler(capacity: 4096)

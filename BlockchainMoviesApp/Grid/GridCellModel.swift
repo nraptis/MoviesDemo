@@ -33,7 +33,7 @@ import Foundation
     //
     @ObservationIgnored var layoutIndex = -1
     
-    @ObservationIgnored var communityCellData: CommunityCellData?
+    //@ObservationIgnored var communityCellData: CommunityCellData?
     
     //
     // This is how we control the state of the cell.

@@ -16,6 +16,12 @@ struct KeyAndIndexPair {
     let index: Int
 }
 
+struct KeyIndexImage {
+    let image: UIImage
+    let key: String
+    let index: Int
+}
+
 extension KeyAndIndexPair: Equatable {
     
 }
@@ -27,6 +33,8 @@ extension KeyAndIndexPair: Hashable {
 class DirtyImageCache {
     
     private let name: String
+    
+    private let DISABLED = true
     
     @DirtyImageCacheActor
     private var fileRecycler = DirtyImageCacheFileRecycler(capacity: 4096)
@@ -48,6 +56,9 @@ class DirtyImageCache {
     }
     
     @DirtyImageCacheActor func cacheImage(_ image: UIImage, _ key: String) async {
+        
+        if DISABLED { return }
+        
         if let node = self.fileRecycler.get(key) {
             try? await Task.sleep(nanoseconds: 100_000)
             node.updateImage(image)
@@ -74,6 +85,9 @@ class DirtyImageCache {
     
     @DirtyImageCacheActor func batchRetrieve(_ keyAndIndexPairs: [KeyAndIndexPair]) async -> [KeyAndIndexPair: UIImage] {
         var result = [KeyAndIndexPair: UIImage]()
+        
+        if DISABLED { return result }
+        
         for keyAndIndexPair in keyAndIndexPairs {
             var image: UIImage?
             if let node = self.fileRecycler.get(keyAndIndexPair.key) {
@@ -88,6 +102,9 @@ class DirtyImageCache {
     }
     
     @DirtyImageCacheActor func singleRetrieve(_ keyAndIndexPair: KeyAndIndexPair) async -> UIImage? {
+        
+        if DISABLED { return nil }
+        
         var image: UIImage?
         if let node = self.fileRecycler.get(keyAndIndexPair.key) {
             image = node.loadImage()

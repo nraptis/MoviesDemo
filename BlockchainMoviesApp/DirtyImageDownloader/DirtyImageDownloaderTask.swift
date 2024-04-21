@@ -173,8 +173,8 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
         
         
         //TODO: Remove
-        /*
-        if Int.random(in: 0...5) == 3 {
+        
+        if Int.random(in: 0...3) == 1 {
             isActive = false
             await MainActor.run {
                 self.downloader = nil
@@ -183,7 +183,7 @@ class DirtyImageDownloaderTask: NSObject, URLSessionDelegate {
             
             return
         }
-        */
+        
         
         isActive = false
         await MainActor.run {

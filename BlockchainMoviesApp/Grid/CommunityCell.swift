@@ -40,10 +40,7 @@ struct CommunityCell: View {
             getMainContent(width: width, height: height)
         }
         .frame(width: gridCellModel.width, height: gridCellModel.height)
-        //.background(DarkwingDuckTheme.gray900)
-        .background(Color(red: Double.random(in: 0.25...0.75),
-                          green: Double.random(in: 0.25...0.75),
-                          blue: Double.random(in: 0.25...0.75)))
+        .background(DarkwingDuckTheme.gray900)
         .clipShape(RoundedRectangle(cornerRadius: CommunityCellConstants.outerRadius))
         .offset(x: x,
                 y: y)

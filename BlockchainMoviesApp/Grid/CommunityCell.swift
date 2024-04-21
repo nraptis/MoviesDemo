@@ -59,9 +59,6 @@ struct CommunityCell: View {
         var isError = false
         
         switch gridCellModel.state {
-        case .uninitialized:
-            isDownloading = true
-            
         case .downloading:
             isDownloading = true
         case .downloadingActively:
@@ -103,6 +100,11 @@ struct CommunityCell: View {
             
             getSuccessContent(width: innerWidth, height: innerHeight, image: image)
                 .opacity(isSuccess ? 1.0 : 0.0)
+            
+            Text("\(gridCellModel.layoutIndex)")
+                .font(.system(size: 32).bold())
+                .foregroundStyle(Color.red)
+                .background(Color.black.opacity(0.5))
         }
     }
     

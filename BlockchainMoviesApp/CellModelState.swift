@@ -9,8 +9,6 @@ import UIKit
 
 enum CellModelState: Equatable {
     
-    case uninitialized
-    
     case downloading
     case downloadingActively
     

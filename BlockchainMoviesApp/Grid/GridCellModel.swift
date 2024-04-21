@@ -39,7 +39,7 @@ import Foundation
     // This is how we control the state of the cell.
     // For example, "success" state carries the image.
     //
-    var state = CellModelState.uninitialized
+    var state = CellModelState.illegal
     
     var x = CGFloat(0.0)
     var y = CGFloat(0.0)

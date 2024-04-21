@@ -92,17 +92,21 @@ struct CommunityCell: View {
         
         return ZStack {
             
-            getMisingContent(width: innerWidth, height: innerHeight)
-                .opacity(isMissing ? 1.0 : 0.0)
+            if isMissing {
+                getMisingContent(width: innerWidth, height: innerHeight)
+            }
+                
+            if isError {
+                getErrorContent(width: innerWidth, height: innerHeight)
+            }
             
-            getErrorContent(width: innerWidth, height: innerHeight)
-                .opacity(isError ? 1.0 : 0.0)
+            if isDownloading {
+                getDownloadingContent(width: innerWidth, height: innerHeight, active: isDownloadingActively)
+            }
             
-            getDownloadingContent(width: innerWidth, height: innerHeight, active: isDownloadingActively)
-                .opacity(isDownloading ? 1.0 : 0.0)
-            
-            getSuccessContent(width: innerWidth, height: innerHeight, image: image)
-                .opacity(isSuccess ? 1.0 : 0.0)
+            if isSuccess {
+                getSuccessContent(width: innerWidth, height: innerHeight, image: image)
+            }
             
             /*
             
